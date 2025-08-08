@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+env/
+venv/
+
+# SAM / builds
+.aws-sam/
+
+# OS
+.DS_Store

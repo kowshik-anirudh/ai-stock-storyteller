@@ -1,0 +1,10 @@
+fastapi==0.112.0
+uvicorn==0.30.5
+yfinance==0.2.43
+pydantic==2.8.2
+pandas==2.2.2
+numpy==1.26.4
+requests==2.32.3
+openai==1.40.3
+mangum==0.17.0
+python-dotenv==1.0.1

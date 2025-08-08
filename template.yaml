@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AI Stock Storyteller - Lambda + API Gateway (FastAPI via Mangum)
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 45
+    MemorySize: 1024
+    Tracing: Active
+
+Parameters:
+  OpenAIKey:
+    Type: String
+    NoEcho: true
+    Description: OpenAI API Key
+  OpenAIModel:
+    Type: String
+    Default: gpt-4o-mini
+  AllowedOrigins:
+    Type: String
+    Default: "*"
+    Description: Comma-separated list of allowed origins for CORS (e.g. https://<your-username>.github.io)
+
+Resources:
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'GET,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: !Sub "'${AllowedOrigins}'"
+
+  StockFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: app.handler
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Ref OpenAIKey
+          OPENAI_MODEL: !Ref OpenAIModel
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Events:
+        GetStory:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /api/story/{ticker}
+            Method: GET
+        Health:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /health
+            Method: GET
+
+Outputs:
+  ApiBaseUrl:
+    Description: API base URL
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/api"
