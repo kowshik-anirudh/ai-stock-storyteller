@@ -7,13 +7,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from mangum import Mangum
 
-# If you split prompts to a separate file, import them; else inline simple defaults:
+# Prompts (use your own prompts.py if you had one)
 try:
     from prompts import SYSTEM_PROMPT, USER_TEMPLATE
 except Exception:
     SYSTEM_PROMPT = (
         "You are a helpful markets narrator. Produce concise JSON with keys: "
-        "title, tldr, narrative, positives[], risks[], suggested_tags[]. No advice."
+        "title, tldr, narrative, positives[], risks[], suggested_tags[]. No investment advice."
     )
     USER_TEMPLATE = (
         "Ticker: {ticker}\nWindow: {window_days} days\n"
@@ -25,15 +25,17 @@ except Exception:
         "Write an engaging, neutral summary for a broad audience."
     )
 
-APP_BUILD = "linux-rebuild-2"
+APP_BUILD = "linux-rebuild-3-s3cache"
 
 # -------- ENV --------
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "*")
+S3_BUCKET = os.environ.get("S3_CACHE_BUCKET")
+S3_TTL = int(os.environ.get("S3_CACHE_TTL_SECONDS", "1800"))  # 30 min default
 
 # -------- FastAPI App --------
-app = FastAPI(title="AI Stock Storyteller", version="1.0.1")
+app = FastAPI(title="AI Stock Storyteller", version="1.2.0")
 
 allowed = [o.strip() for o in ALLOWED_ORIGINS.split(",")] if ALLOWED_ORIGINS else ["*"]
 app.add_middleware(
@@ -44,7 +46,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# simple in-memory cache per container
+# in-memory cache per Lambda container
 CACHE = {}
 CACHE_TTL = 60 * 10  # 10 minutes
 
@@ -54,6 +56,46 @@ class StoryRequest(BaseModel):
     window_days: int = 180
 
 
+# ---------- S3 Cache Helpers ----------
+def _s3_key(ticker: str, window_days: int) -> str:
+    return f"stories/{ticker.upper()}_{window_days}.json"
+
+
+def s3_get_cached(ticker: str, window_days: int):
+    if not S3_BUCKET:
+        return None
+    try:
+        import boto3
+        s3 = boto3.client("s3")
+        key = _s3_key(ticker, window_days)
+        obj = s3.get_object(Bucket=S3_BUCKET, Key=key)
+        data = json.loads(obj["Body"].read())
+        if time.time() - float(data.get("cached_at", 0)) < S3_TTL:
+            return data["payload"]
+        return None
+    except Exception:
+        return None  # silent miss
+
+
+def s3_put_cache(ticker: str, window_days: int, payload: dict):
+    if not S3_BUCKET:
+        return
+    try:
+        import boto3
+        s3 = boto3.client("s3")
+        key = _s3_key(ticker, window_days)
+        doc = {"cached_at": time.time(), "payload": payload}
+        s3.put_object(
+            Bucket=S3_BUCKET,
+            Key=key,
+            Body=json.dumps(doc).encode("utf-8"),
+            ContentType="application/json",
+        )
+    except Exception:
+        pass
+
+
+# ---------- Data & Metrics ----------
 def _pct_change(series, days):
     try:
         if len(series) < days + 1:
@@ -65,7 +107,7 @@ def _pct_change(series, days):
 
 def compute_metrics(ticker: str, window_days: int):
     """
-    Fetches from Yahoo's chart API (more reliable on Lambda).
+    Fetch from Yahoo chart API (more reliable on Lambda than yfinance).
     Lazy imports keep /health lightweight.
     """
     import pandas as pd
@@ -117,7 +159,6 @@ def compute_metrics(ticker: str, window_days: int):
     chg_1m = _pct_change(close.values, 21)
     chg_3m = _pct_change(close.values, 63)
     chg_1y = _pct_change(close.values, 252)
-
     vol_30 = float(pd.Series(close).pct_change().rolling(30).std().iloc[-1] * 100.0)
 
     y = end.year
@@ -169,14 +210,12 @@ def compute_metrics(ticker: str, window_days: int):
     }
 
 
+# ---------- OpenAI ----------
 def generate_story_openai(ticker: str, window_days: int, facts: dict):
     """
-    Uses OpenAI SDK (v1.x). Handles rate limits/quota politely.
+    OpenAI SDK v1.x; graceful 429/insufficient_quota fallback.
     """
-    from openai import OpenAI
-    import json as _json
-    from fastapi import HTTPException
-    from openai import RateLimitError, APIError
+    from openai import OpenAI, RateLimitError, APIError
 
     if not OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured")
@@ -210,7 +249,7 @@ def generate_story_openai(ticker: str, window_days: int, facts: dict):
         )
         content = resp.choices[0].message.content
         return json.loads(content)
-    except RateLimitError as e:
+    except RateLimitError:
         # Friendly fallback payload
         return {
             "title": f"{ticker.upper()} story (temporary fallback)",
@@ -228,7 +267,6 @@ def generate_story_openai(ticker: str, window_days: int, facts: dict):
     except APIError as e:
         raise HTTPException(status_code=502, detail=f"OpenAI API error: {e}")
     except Exception as e:
-        # If model ever returns non-JSON / other exception
         return {
             "title": "Stock Story",
             "tldr": "",
@@ -239,6 +277,7 @@ def generate_story_openai(ticker: str, window_days: int, facts: dict):
         }
 
 
+# ---------- Routes ----------
 @app.get("/health")
 def health():
     return {"ok": True, "ts": time.time(), "build": APP_BUILD}
@@ -248,9 +287,18 @@ def health():
 def get_story(ticker: str, window_days: int = 180):
     key = f"{ticker.upper()}:{window_days}"
     now = time.time()
+
+    # 1) In-memory cache
     if key in CACHE and now - CACHE[key]["ts"] < CACHE_TTL:
         return CACHE[key]["data"]
 
+    # 2) S3 cache
+    s3_hit = s3_get_cached(ticker, window_days)
+    if s3_hit:
+        CACHE[key] = {"ts": now, "data": s3_hit}
+        return s3_hit
+
+    # 3) Fresh generation
     facts = compute_metrics(ticker, window_days)
     story = generate_story_openai(ticker, window_days, facts)
     payload = {
@@ -260,9 +308,13 @@ def get_story(ticker: str, window_days: int = 180):
         "story": story,
         "disclaimer": "Educational use only. Not investment advice.",
     }
+
+    # write-through caches
     CACHE[key] = {"ts": now, "data": payload}
+    s3_put_cache(ticker, window_days, payload)
+
     return payload
 
 
-# Lambda entrypoint
+# Lambda adapter
 handler = Mangum(app)
