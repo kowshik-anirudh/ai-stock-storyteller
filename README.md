@@ -4,7 +4,7 @@ Turn raw market data into **engaging, human-readable stock narratives** powered 
 Just type a ticker (e.g., `NVDA`) — get a **fact-rich story** with trends, positives, and risks.
 
 🔗 **Live Demo (Frontend)**: [GitHub Pages Link](https://kowshik-anirudh.github.io/ai-stock-storyteller/)  
-🔗 **API Base URL**: `https://<your-api-id>.execute-api.us-west-2.amazonaws.com/Prod`
+
 
 ---
 
