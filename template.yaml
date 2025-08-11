@@ -1,13 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: AI Stock Storyteller - Lambda + API Gateway (FastAPI via Mangum)
-
-Globals:
-  Function:
-    Runtime: python3.11
-    Timeout: 45
-    MemorySize: 1024
-    Tracing: Active
+Description: AI Stock Storyteller (v2 trader) - Lambda + API Gateway + S3 cache
 
 Parameters:
   OpenAIKey:
@@ -17,48 +10,97 @@ Parameters:
   OpenAIModel:
     Type: String
     Default: gpt-4o-mini
+    Description: OpenAI model id
   AllowedOrigins:
     Type: String
     Default: "*"
-    Description: Comma-separated list of allowed origins for CORS (e.g. https://<your-username>.github.io)
+    Description: Comma-separated list for CORS (e.g., https://<your-username>.github.io)
+  S3CacheTTLSeconds:
+    Type: Number
+    Default: 1800
+    Description: Cache TTL in seconds (e.g., 1800 = 30 minutes)
+
+Conditions:
+  AllowAllCors: !Equals [ !Ref AllowedOrigins, "*" ]
 
 Resources:
-  ApiGateway:
+  # API Gateway (SAM shorthand)
+  ServerlessRestApi:
     Type: AWS::Serverless::Api
     Properties:
       StageName: Prod
+      EndpointConfiguration: REGIONAL
       Cors:
         AllowMethods: "'GET,OPTIONS'"
-        AllowHeaders: "'Content-Type,Authorization'"
-        AllowOrigin: !Sub "'${AllowedOrigins}'"
+        AllowHeaders: "'Content-Type,Authorization,X-Requested-With,x-api-key'"
+        AllowOrigin: !If
+          - AllowAllCors
+          - "'*'"
+          - !Sub "'${AllowedOrigins}'"
+
+  # S3 cache for generated stories
+  CacheBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
 
   StockFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: backend/
-      Handler: app.handler
+      Handler: app.lambda_handler         # <-- must match your app.py (Mangum handler variable)
+      Runtime: python3.11
+      MemorySize: 1536
+      Timeout: 25
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+                - s3:ListBucket
+              Resource:
+                - !GetAtt CacheBucket.Arn
+                - !Sub "${CacheBucket.Arn}/*"
       Environment:
         Variables:
           OPENAI_API_KEY: !Ref OpenAIKey
           OPENAI_MODEL: !Ref OpenAIModel
           ALLOWED_ORIGINS: !Ref AllowedOrigins
-      Policies:
-        - AWSLambdaBasicExecutionRole
+          S3_CACHE_BUCKET: !Ref CacheBucket
+          S3_CACHE_TTL_SECONDS: !Ref S3CacheTTLSeconds
       Events:
-        GetStory:
-          Type: Api
-          Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /api/story/{ticker}
-            Method: GET
         Health:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
+            RestApiId: !Ref ServerlessRestApi
             Path: /health
+            Method: GET
+        GetStory:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ServerlessRestApi
+            Path: /api/story/{ticker}
             Method: GET
 
 Outputs:
   ApiBaseUrl:
     Description: API base URL
-    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/api"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api"
+  CacheBucketName:
+    Description: S3 bucket used for caching stock stories
+    Value: !Ref CacheBucket

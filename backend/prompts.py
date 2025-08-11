@@ -1,27 +1,33 @@
-SYSTEM_PROMPT = """You are an expert financial narrator.
-Write concise, engaging, non-promissory summaries about public stocks using supplied metrics only.
-Avoid giving investment advice. Keep it neutral, factual, and crisp. Return JSON as instructed."""
+# backend/prompts.py
+def build_story_prompt(ticker: str, window_days: int, facts: dict) -> str:
+    """
+    Trader-oriented prompt. Requires JSON-only output with specific keys.
+    """
+    return f"""
+You are a disciplined sell-side strategist writing a concise trader's brief.
 
-USER_TEMPLATE = """Ticker: {ticker}
+TICKER: {ticker}
+WINDOW_DAYS: {window_days}
 
-Time Window: last {window_days} days
-Facts:
-- Current Price: {current_price}
-- 5D Change: {chg_5d:.2f}%
-- 1M Change: {chg_1m:.2f}%
-- 3M Change: {chg_3m:.2f}%
-- 1Y Change: {chg_1y:.2f}%
-- Volatility (30d std): {vol_30:.2f}
-- Max Drawdown (YTD): {max_dd_ytd:.2f}%
-- Simple Technicals: {technicals}
-- Notable Events: {events}
+DATA (JSON):
+{facts}
 
-Write strict JSON with keys:
-- title (string, <= 10 words)
-- tldr (string, one sentence)
-- narrative (string, 120–200 words)
-- positives (array of strings, up to 3)
-- risks (array of strings, up to 3)
-- suggested_tags (array of lowercase strings, 3–6)
+Write a SHORT report focused on tradable insights. Use the data above (do not invent numbers).
+Return VALID JSON ONLY (no markdown) with keys:
+- title (string)
+- tldr (string, <= 220 chars)
+- narrative (string, 3–6 sentences)
+- positives (array of short bullets)
+- risks (array of short bullets)
+- suggested_tags (array of lowercase slugs)
 
-Do not include any extra keys. No investment advice."""
+Cover:
+- Momentum/Trend: 5d/1m/3m/6m; price vs 20/50/200DMA; slope20%; relative strength vs SPY.
+- Volatility/Risk: realized vol(30d), ATR(14) as stop sizing context; maxDD YTD; beta vs SPY.
+- Mean reversion: RSI-14 zones and implications.
+- Volume: 20d average and latest/avg ratio (vol_ratio).
+- Levels: 20d support/resistance (sr_low_20d, sr_high_20d) — not guarantees.
+- Catalysts: earnings_event if present.
+- Tone: neutral, evidence-based, no advice or targets. <= 1200 chars total.
+- Include 4–8 tags like ["momentum","rsi","atr","trend","beta","levels","liquidity"].
+"""

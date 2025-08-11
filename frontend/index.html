@@ -1,228 +1,309 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AI Stock Storyteller</title>
-  <meta name="description" content="Type a ticker. Get a crisp, factual stock narrative with context, positives, and risks." />
-  <meta name="theme-color" content="#0b0d10" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f7f9fc" media="(prefers-color-scheme: light)">
-  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-  <style>
-    :root{
-      --bg:#0b0d10; --text:#e8edf3; --muted:#9aa4b2; --card:#0f1216; --border:#161b22;
-      --accent:#77ffd2; --accent-2:#7aa8ff; --ring:rgba(119,255,210,.45);
-      --shadow: 0 20px 60px rgba(0,0,0,.35); --glass: rgba(255,255,255,.04);
-    }
-    @media (prefers-color-scheme: light){
-      :root{ --bg:#f7f9fc; --text:#0b0d10; --muted:#667085; --card:#ffffff; --border:#e6eaf0;
-        --shadow: 0 20px 60px rgba(0,0,0,.10); --glass: rgba(255,255,255,.6); --ring: rgba(122,168,255,.35); }
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0; background:radial-gradient(1200px 800px at 10% -20%, rgba(122,168,255,.12), transparent 45%),
-                       radial-gradient(1000px 700px at 110% 10%, rgba(119,255,210,.10), transparent 50%),
-                       var(--bg);
-      color:var(--text); font-family: Inter, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-    }
-    .container{max-width:980px;margin:0 auto;padding:28px 16px 96px}
-    header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px}
-    .brand{display:flex;align-items:center;gap:14px}
-    .logo{ width:42px;height:42px;border-radius:12px; background: conic-gradient(from 140deg at 50% 50%, var(--accent), var(--accent-2), var(--accent)); display:grid;place-items:center; box-shadow: var(--shadow); transform: translateZ(0); transition: transform .18s ease; }
-    .logo:hover{ transform: translateY(-2px) scale(1.02) }
-    .logo svg{ filter: drop-shadow(0 2px 8px rgba(0,0,0,.25)) }
-    h1{font-size:22px;line-height:1.15;margin:0}
-    .tagline{color:var(--muted);font-size:14px;margin-top:2px}
-
-    .card{ position:relative; border:1px solid var(--border); border-radius:20px; padding:20px; background: color-mix(in oklab, var(--card) 88%, transparent); box-shadow: var(--shadow); backdrop-filter: saturate(140%) blur(8px); }
-    @supports not (backdrop-filter: blur(8px)){ .card{ background:var(--card) } }
-
-    .grid{display:grid; grid-template-columns: 1fr auto auto; gap:12px; align-items:end}
-    @media (max-width:720px){ .grid{ grid-template-columns: 1fr } }
-
-    .field{position:relative}
-    .input{ width:100%; padding:16px 14px 14px 14px; border-radius:14px; border:1px solid var(--border); background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)); color:var(--text); outline:0; font-size:16px; transition: box-shadow .15s ease, border-color .15s ease, transform .04s ease; }
-    .input:focus{ box-shadow: 0 0 0 6px var(--ring); border-color: color-mix(in oklab, var(--accent-2) 40%, transparent) }
-    .input::placeholder{ color: color-mix(in oklab, var(--muted) 70%, transparent) }
-    .floating{ pointer-events:none; position:absolute; left:12px; top:12px; padding:0 6px; background:var(--card); color:var(--muted); font-size:12px; opacity:.0; transform: translateY(8px); transition: .15s ease; }
-    .input:focus + .floating, .input:not(:placeholder-shown) + .floating{ opacity:1; transform: translateY(-8px); }
-
-    .select, button{ border:1px solid var(--border); background:linear-gradient(135deg, var(--accent), var(--accent-2)); color:#03150f; font-weight:700; padding:12px 14px; border-radius:14px; cursor:pointer; font-size:15px; transition: transform .08s ease, filter .2s ease; }
-    button{ display:inline-flex; align-items:center; gap:8px }
-    button:active{ transform: translateY(1px) scale(.995) }
-    .ghost{ background:transparent; color:var(--text); border-color:var(--border); }
-
-    .muted{ color:var(--muted) } .helper{ margin-top:8px; font-size:12px }
-    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center }
-    .kbd{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; border:1px solid var(--border); padding:2px 6px; border-radius:8px; font-size:12px; color:var(--muted) }
-
-    .result{ margin-top:18px } .title{ font-size:20px; margin:0 0 6px 0 }
-    .meta{ color:var(--muted); font-size:13px; margin-bottom:8px }
-    .tldr{ font-style:italic; margin:10px 0 14px }
-    .list h3{ font-size:13px; margin:18px 0 8px 0; letter-spacing:.2px; text-transform:uppercase; color:var(--muted) }
-    ul{ margin:0; padding-left:18px }
-    .tags{ margin-top:14px } .tag{ display:inline-block; margin:6px 6px 0 0; padding:6px 10px; border-radius:999px; border:1px solid var(--border); font-size:12px; color:var(--muted) }
-
-    .skeleton{ position:relative; height:190px; border-radius:16px; border:1px solid var(--border); background:var(--glass); overflow:hidden; }
-    .skeleton::after{ content:""; position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,.07), transparent); animation: shimmer 1.2s infinite; background-size:200% 100%; }
-    @keyframes shimmer{ 0%{ background-position:-200% 0 } 100%{ background-position:200% 0 } }
-
-    .toast{ position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#11151a; color:#fff; padding:12px 14px; border-radius:12px; border:1px solid #2a2f37; box-shadow:var(--shadow); font-size:14px; display:none; z-index:1000 }
-
-    .footer{ margin-top:34px; text-align:center; color:var(--muted); font-size:12px }
-    .sep{ height:1px; background:var(--border); margin:16px 0 }
-    @media (prefers-reduced-motion: reduce){ *{ animation: none !important; transition: none !important } }
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AI Stock Storyteller</title>
+<meta name="description" content="Minimal, elegant stock stories for traders from real data + AI."/>
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --bg:#0b0d10; --card:#101316; --ink:#e9eff6; --muted:#9fb2c6;
+    --line:rgba(255,255,255,.08); --ring:rgba(94,234,212,.22);
+    --accent:#5eead4; --good:#22c55e; --bad:#ef4444;
+    --radius:16px; --shadow:0 12px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;background:linear-gradient(180deg,#0a0c0f,#0b0d10 40%);color:var(--ink);
+       font:16px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;}
+  .wrap{max-width:960px;margin:0 auto;padding:28px 18px 64px}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .dot{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--accent),#6aa6ff);
+       filter:drop-shadow(0 6px 18px rgba(94,234,212,.3))}
+  h1{font-size:18px;margin:0} .sub{color:var(--muted);font-size:12px;margin-top:2px}
+  .badge{color:var(--muted);font-size:12px;border:1px solid var(--line);padding:4px 10px;border-radius:999px}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.01));
+        border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); backdrop-filter:blur(4px)}
+  .panel{padding:14px; display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+  label{font-size:12px; color:var(--muted)}
+  .field{display:flex; flex-direction:column; gap:6px; min-width:190px; flex:1 1 230px}
+  input,select{padding:12px 14px; border-radius:12px; background:rgba(255,255,255,.03);
+               border:1px solid rgba(255,255,255,.1); color:var(--ink); outline:none}
+  input:focus,select:focus{box-shadow:0 0 0 6px var(--ring); border-color:rgba(94,234,212,.35)}
+  .actions{margin-left:auto; display:flex; gap:10px}
+  button{appearance:none;border:0;border-radius:12px;padding:12px 16px;font-weight:600;cursor:pointer;
+         background:linear-gradient(180deg,var(--accent),#77d0ff); color:#081014; box-shadow:0 12px 20px rgba(94,234,212,.25)}
+  .ghost{background:transparent; color:var(--ink); border:1px solid rgba(255,255,255,.16); box-shadow:none}
+  .presets{display:flex; gap:8px; flex-wrap:wrap; padding:10px 14px; border-top:1px solid var(--line)}
+  .chip{padding:8px 12px; border-radius:999px; background:rgba(255,255,255,.04); border:1px solid var(--line); color:var(--muted); cursor:pointer}
+  .grid{display:grid; gap:16px; grid-template-columns:1fr; margin-top:16px}
+  @media(min-width:900px){ .grid{ grid-template-columns:1.1fr .9fr } }
+  .section{padding:16px}
+  .facts{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
+  .fact{border:1px solid var(--line); border-radius:12px; padding:12px; background:rgba(255,255,255,.03)}
+  .k{font-size:12px; color:var(--muted)} .v{font-weight:700}
+  .pill{display:inline-flex; gap:8px; align-items:center; padding:6px 10px; border-radius:999px;
+        border:1px solid var(--line); background:rgba(255,255,255,.04); font-size:12px}
+  .muted{color:var(--muted)} .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+  .alert{display:none;margin-top:12px; padding:12px 14px; border-radius:12px; border:1px solid var(--line)}
+  .warn{background:rgba(245,158,11,.08); border-color:rgba(245,158,11,.35)}
+  .err{background:rgba(239,68,68,.08); border-color:rgba(239,68,68,.35)}
+  .loader{display:none; align-items:center; gap:10px; padding:14px}
+  .spinner{width:18px; height:18px; border:3px solid rgba(255,255,255,.15); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  footer{margin-top:28px; display:flex; justify-content:space-between; align-items:center; color:var(--muted); font-size:12px}
+  .links{display:flex; gap:10px; flex-wrap:wrap}
+  .link{color:var(--muted); text-decoration:none; border-bottom:1px dashed rgba(255,255,255,.2)}
+  .sugg{position:relative}
+  .dropdown{position:absolute; top:64px; left:0; right:0; background:var(--card); border:1px solid var(--line);
+            border-radius:12px; max-height:260px; overflow:auto; box-shadow:var(--shadow); display:none; z-index:10}
+  .row{display:flex; justify-content:space-between; gap:10px; padding:8px 12px; cursor:pointer}
+  .row:hover{background:rgba(255,255,255,.04)}
+  mark{background:transparent; color:var(--accent); font-weight:700}
+</style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div class="brand">
-        <div class="logo" aria-hidden="true">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M3 16l6-7 4 5 8-10" stroke="#00130a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
-        <div>
-          <h1>AI Stock Storyteller</h1>
-          <div class="tagline">Minimal UI. Maximum signal.</div>
-        </div>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="dot" aria-hidden="true"></div>
+      <div>
+        <h1>AI Stock Storyteller</h1>
+        <div class="sub">Minimal, evidence-based stories for traders.</div>
       </div>
-      <div class="row">
-        <span class="kbd">⌘/Ctrl</span><span class="kbd">K</span><span class="muted"> to focus</span>
-      </div>
-    </header>
-
-    <section class="card">
-      <div class="grid" role="search">
-        <div class="field">
-          <input id="ticker" class="input" placeholder=" " autocomplete="off" spellcheck="false" aria-label="Ticker input (e.g., AAPL)" />
-          <label class="floating" for="ticker">Ticker (e.g., AAPL, MSFT, NVDA)</label>
-        </div>
-        <select id="window" class="select" aria-label="Window">
-          <option value="90">Last 90 days</option>
-          <option value="180" selected>Last 180 days</option>
-          <option value="365">Last 365 days</option>
-        </select>
-        <button id="go" aria-label="Tell the story">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7" stroke="#03150f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Tell the story
-        </button>
-      </div>
-      <div class="row helper">
-        <span class="muted">Tip: Try <b>AAPL</b> or <b>NVDA</b>. Data may be delayed ~15m.</span>
-        <span class="muted">|</span>
-        <button id="share" class="ghost" aria-label="Share current link">Share</button>
-        <button id="copy" class="ghost" aria-label="Copy link">Copy link</button>
-      </div>
-
-      <div id="stage" class="result" aria-live="polite" aria-busy="false"></div>
-    </section>
-
-    <div class="footer">
-      <div class="sep"></div>
-      Built with FastAPI · AWS Lambda · API Gateway · OpenAI · yfinance
-      <div class="muted" style="margin-top:6px">Educational use only. Not investment advice.</div>
     </div>
+    <div class="badge">AWS • OpenAI • S3 Cache</div>
+  </header>
+
+  <!-- Controls -->
+  <section class="card" aria-labelledby="form">
+    <div class="panel">
+      <div class="field sugg">
+        <label for="ticker">Ticker (with autocomplete)</label>
+        <input id="ticker" placeholder="Start typing: NVDA, AAPL, MSFT…" autocomplete="off" />
+        <div id="dd" class="dropdown" role="listbox" aria-label="Suggestions"></div>
+      </div>
+      <div class="field" style="max-width:180px">
+        <label for="days">Window (days)</label>
+        <select id="days">
+          <option value="90">90</option>
+          <option value="180" selected>180</option>
+          <option value="365">365</option>
+        </select>
+      </div>
+      <div class="actions">
+        <button id="run" type="button">Generate</button>
+        <button id="share" class="ghost" type="button">Copy Link</button>
+      </div>
+    </div>
+    <div class="presets">
+      <span class="chip" data-t="NVDA">NVDA</span>
+      <span class="chip" data-t="AAPL">AAPL</span>
+      <span class="chip" data-t="MSFT">MSFT</span>
+      <span class="chip" data-t="TSLA">TSLA</span>
+      <span class="chip" data-t="SPY">SPY</span>
+      <span class="chip" data-t="QQQ">QQQ</span>
+    </div>
+  </section>
+
+  <div id="warn" class="alert warn"></div>
+  <div id="err" class="alert err"></div>
+  <div id="load" class="loader"><div class="spinner"></div><div class="muted">Generating your story…</div></div>
+
+  <!-- Results -->
+  <div class="grid" id="results" hidden>
+    <section class="card section">
+      <div class="pill"><span id="title">—</span></div>
+      <p class="muted" id="tldr" style="margin:10px 0 8px"></p>
+      <p id="narr" style="white-space:pre-wrap;margin:0"></p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px" id="tags"></div>
+    </section>
+    <aside class="card section">
+      <h3 style="margin:0 0 8px 0">Snapshot</h3>
+      <div class="facts" id="facts"></div>
+      <div style="margin-top:12px">
+        <h3 style="margin:0 0 6px 0">Highlights</h3>
+        <ul class="clean" id="pos" style="list-style:none; padding:0; margin:0"></ul>
+      </div>
+      <div style="margin-top:10px">
+        <h3 style="margin:0 0 6px 0">Risks</h3>
+        <ul class="clean" id="risks" style="list-style:none; padding:0; margin:0"></ul>
+      </div>
+      <p class="muted" id="disc" style="margin-top:10px"></p>
+    </aside>
   </div>
 
-  <div id="toast" class="toast" role="status" aria-live="assertive"></div>
+  <footer>
+    <div>© <span id="yr"></span> <span id="owner"></span></div>
+    <div class="links">
+      <a class="link" id="apiLink" href="#" target="_blank" rel="noreferrer">Last API call</a>
+      <a class="link" href="https://github.com/kowshik-anirudh/ai-stock-storyteller" target="_blank" rel="noreferrer">Source</a>
+    </div>
+  </footer>
+</div>
 
-  <script>
-    // ======= SET THIS AFTER BACKEND DEPLOY =======
-    // Example (us-west-2):
-    // "https://abcd1234.execute-api.us-west-2.amazonaws.com/Prod/api"
-    const API_BASE = "https://hzvhm120y9.execute-api.us-west-2.amazonaws.com/Prod/api";
+<script>
+  // ===== CONFIG =====
+  const API_BASE = "https://cq094tylu1.execute-api.us-west-2.amazonaws.com/Prod/api";
+  const OWNER_NAME = "Anirudh Kowshik";
+  const TICKERS_URL = "tickers.json"; // same folder as index.html
+  const API_KEY = ""; // if you later enable API Gateway key auth, put it here.
+  // ==================
 
+  const $ = s => document.querySelector(s);
+  const el = {
+    t: $("#ticker"), dd: $("#dd"), d: $("#days"), run: $("#run"), share: $("#share"),
+    warn: $("#warn"), err: $("#err"), load: $("#load"), res: $("#results"),
+    title: $("#title"), tldr: $("#tldr"), narr: $("#narr"), tags: $("#tags"),
+    facts: $("#facts"), pos: $("#pos"), risks: $("#risks"), disc: $("#disc"),
+    apiLink: $("#apiLink"), owner: $("#owner")
+  };
 
-    const $ = sel => document.querySelector(sel);
-    const stage = $('#stage');
-    const toast = $('#toast');
-    const fmtNum = n => new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(+n || 0);
+  document.getElementById("yr").textContent = new Date().getFullYear();
+  el.owner.textContent = OWNER_NAME;
 
-    function showToast(msg){
-      toast.textContent = msg; toast.style.display='block';
-      clearTimeout(showToast._t); showToast._t = setTimeout(()=>toast.style.display='none', 2500);
+  // ===== Autocomplete =====
+  let master = []; // [{s,n}]
+  fetch(TICKERS_URL).then(r=>r.json()).then(list => master = list).catch(()=>{ /* ignore */ });
+
+  el.t.addEventListener("input", () => suggest(el.t.value.trim()));
+  el.t.addEventListener("focus", () => suggest(el.t.value.trim()));
+  document.addEventListener("click", (e)=>{ if(!el.dd.contains(e.target) && e.target!==el.t){ el.dd.style.display="none"; }});
+
+  function suggest(q){
+    const v = (q || "").toUpperCase();
+    if(!v){ el.dd.style.display="none"; return; }
+    const m = v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(m, "i");
+    const out = master
+      .filter(x => x.s.startsWith(v) || re.test(x.s) || re.test(x.n))
+      .slice(0, 12);
+
+    if(out.length===0){ el.dd.style.display="none"; return; }
+
+    el.dd.innerHTML = out.map(x=>{
+      const sym = x.s.replace(re, (w)=>`<mark>${w}</mark>`);
+      const nm  = x.n.replace(re, (w)=>`<mark>${w}</mark>`);
+      return `<div class="row" role="option" data-s="${x.s}">
+        <div class="mono">${sym}</div>
+        <div class="muted" style="flex:1;text-align:right">${nm}</div>
+      </div>`;
+    }).join("");
+    el.dd.style.display = "block";
+    el.dd.querySelectorAll(".row").forEach(r=>r.addEventListener("click", ()=>{
+      el.t.value = r.dataset.s;
+      el.dd.style.display="none";
+      run(false);
+    }));
+  }
+
+  // Presets + Actions
+  document.querySelectorAll(".chip").forEach(c => c.addEventListener("click", ()=>{
+    el.t.value = c.dataset.t; run();
+  }));
+  el.run.addEventListener("click", ()=>run());
+  el.share.addEventListener("click", ()=>{
+    const u = new URL(location.href);
+    u.searchParams.set("ticker", el.t.value.trim().toUpperCase());
+    u.searchParams.set("days", el.d.value);
+    navigator.clipboard.writeText(u.toString());
+  });
+  el.t.addEventListener("keydown", e=>{ if(e.key==="Enter") run(); });
+
+  // Load from URL
+  (function initFromQuery(){
+    const q = new URLSearchParams(location.search);
+    const t = (q.get("ticker") || "NVDA").toUpperCase();
+    const days = q.get("days") || "180";
+    el.t.value = t; el.d.value = days;
+    run(false);
+  })();
+
+  async function run(showToast=true){
+    clearAlerts();
+    const ticker = el.t.value.trim().toUpperCase();
+    const days = parseInt(el.d.value, 10) || 180;
+    if(!ticker){ alertBox(el.err, "Enter a ticker."); return; }
+
+    const url = `${API_BASE}/story/${encodeURIComponent(ticker)}?window_days=${days}`;
+    el.apiLink.href = url;
+
+    toggleLoad(true);
+    try{
+      const res = await fetch(url, {
+        headers: Object.assign({"Accept":"application/json"}, API_KEY?{"x-api-key":API_KEY}:{})
+      });
+      if(!res.ok) throw new Error(`API ${res.status}`);
+      const data = await res.json();
+      render(data);
+    }catch(e){
+      alertBox(el.err, e.message || "Request failed");
+      el.res.hidden = true;
+    }finally{
+      toggleLoad(false);
     }
-    function setLoading(on){
-      stage.setAttribute('aria-busy', on ? 'true' : 'false');
-      stage.innerHTML = on ? `<div class="skeleton" aria-hidden="true"></div>` : '';
-    }
-    function escapeHtml(str){
-      return String(str ?? '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[s]));
-    }
-    function getParams(){
-      const t = ($('#ticker').value || '').trim().toUpperCase();
-      const w = $('#window').value;
-      return {t, w};
-    }
-    function updateURL(t, w){
-      const url = new URL(location.href);
-      url.searchParams.set('t', t);
-      url.searchParams.set('w', w);
-      history.replaceState(null, '', url.toString());
-    }
+  }
 
-    async function run(){
-      const {t, w} = getParams();
-      if(!t){ showToast('Please enter a ticker'); $('#ticker').focus(); return; }
-      if(!API_BASE || API_BASE.includes('YOUR_API_URL')){ showToast('Set API_BASE in the HTML first.'); return; }
+  function render(data){
+    const { ticker, window_days, facts={}, story={}, disclaimer="" } = data || {};
+    el.res.hidden = false;
+    el.title.textContent = story.title || `${ticker} story`;
+    el.tldr.textContent = story.tldr || "";
+    el.narr.textContent = story.narrative || "";
+    el.tags.innerHTML = (story.suggested_tags||[]).map(t=>`<span class="pill">#${t}</span>`).join("");
 
-      try{ localStorage.setItem('last_ticker', t); }catch(_){}
-      updateURL(t, w);
-      setLoading(true);
+    const rows = [
+      ["Current Price", money(facts.current_price)],
+      ["5d Change", pct(facts.chg_5d)],
+      ["1m Change", pct(facts.chg_1m)],
+      ["3m Change", pct(facts.chg_3m)],
+      ["6m Change", pct(facts.chg_6m)],
+      ["1y Change", pct(facts.chg_1y)],
+      ["Vol (30d σ ann.)", pct(facts.vol_30)],
+      ["MaxDD YTD", pct(facts.max_dd_ytd)],
+      ["RSI-14", num(facts.rsi14)],
+      ["ATR-14", money(facts.atr14)],
+      ["Beta vs SPY", num(facts.beta_vs_spy)],
+      ["Rel 3m vs SPY", pct(facts.rel_3m_vs_spy_pct)],
+      ["20DMA", money(facts.dma20)],
+      ["50DMA", money(facts.dma50)],
+      ["200DMA", money(facts.dma200)],
+      ["Δ vs 20DMA", pct(facts.dist20_pct)],
+      ["Δ vs 50DMA", pct(facts.dist50_pct)],
+      ["Δ vs 200DMA", pct(facts.dist200_pct)],
+      ["Avg Vol (20d)", intf(facts.avg_vol_20d)],
+      ["Vol Ratio (today/avg)", num(facts.vol_ratio)],
+      ["20d High", money(facts.sr_high_20d)],
+      ["20d Low", money(facts.sr_low_20d)],
+      ["Technicals", facts.technicals||"—"],
+      ["Earnings", facts.earnings_event||"—"],
+      ["Window", `${window_days}d`]
+    ];
+    el.facts.innerHTML = rows.map(([k,v])=>`<div class="fact"><div class="k">${k}</div><div class="v mono">${v}</div></div>`).join("");
 
-      try{
-        const res = await fetch(`${API_BASE}/story/${encodeURIComponent(t)}?window_days=${encodeURIComponent(w)}`);
-        if(!res.ok) throw new Error(await res.text());
-        const data = await res.json();
-        render(data);
-      }catch(err){
-        setLoading(false);
-        showToast('Error: ' + (err.message || 'request failed'));
-      }
-    }
+    listTo(el.pos, story.positives);
+    listTo(el.risks, story.risks);
+    el.disc.textContent = disclaimer || "Educational use only. Not investment advice.";
 
-    function render(data){
-      const f = data.facts || {};
-      const s = data.story || {};
-      setLoading(false);
-      stage.innerHTML = `
-        <article class="card">
-          <h2 class="title">${escapeHtml(s.title || 'Stock Story')}</h2>
-          <div class="meta">
-            <strong>${escapeHtml(data.ticker || '')}</strong>
-            &nbsp;•&nbsp; window: ${fmtNum(data.window_days || 0)}d
-            &nbsp;•&nbsp; price: $${fmtNum(f.current_price)}
-            &nbsp;•&nbsp; 1M: ${fmtNum(f.chg_1m)}% • 3M: ${fmtNum(f.chg_3m)}% • 1Y: ${fmtNum(f.chg_1y)}% • Vol(30d): ${fmtNum(f.vol_30)}
-          </div>
-          ${s.tldr ? `<p class="tldr"><strong>TL;DR:</strong> ${escapeHtml(s.tldr)}</p>` : ''}
-          ${s.narrative ? `<p>${escapeHtml(s.narrative)}</p>` : ''}
-          ${(s.positives && s.positives.length) ? `<div class="list"><h3>Positives</h3><ul>${s.positives.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div>`:''}
-          ${(s.risks && s.risks.length) ? `<div class="list"><h3>Risks</h3><ul>${s.risks.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div>`:''}
-          ${(s.suggested_tags && s.suggested_tags.length) ? `<div class="tags">${s.suggested_tags.map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>`:''}
-          ${data.disclaimer ? `<p class="muted" style="margin-top:14px">${escapeHtml(data.disclaimer)}</p>`:''}
-        </article>
-      `;
-    }
+    // fallback notice
+    const fb = (story.suggested_tags||[]).includes("fallback");
+    if(fb) alertBox(el.warn, "Showing fallback (model quota/rate limit).");
+    else el.warn.style.display="none";
+  }
 
-    $('#go').addEventListener('click', run);
-    $('#ticker').addEventListener('keydown', e=>{ if(e.key==='Enter') run(); });
-    document.addEventListener('keydown', e=>{
-      if((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); $('#ticker').focus(); }
-    });
-
-    (function init(){
-      const url = new URL(location.href);
-      const t = url.searchParams.get('t') || localStorage.getItem('last_ticker') || '';
-      const w = url.searchParams.get('w') || '180';
-      if(t) $('#ticker').value = t;
-      $('#window').value = w;
-      if(t) requestIdleCallback ? requestIdleCallback(run) : setTimeout(run, 50);
-    })();
-  </script>
+  function listTo(node, arr){
+    node.innerHTML = "";
+    (arr||[]).forEach(x=>{ const li=document.createElement("li"); li.textContent=x; node.appendChild(li); });
+    if(!arr || arr.length===0){ const li=document.createElement("li"); li.className="muted"; li.textContent="—"; node.appendChild(li); }
+  }
+  function money(x){ if(x==null || Number.isNaN(+x)) return "—"; return "$"+Number(x).toLocaleString(undefined,{maximumFractionDigits:2}); }
+  function intf(x){ if(x==null || Number.isNaN(+x)) return "—"; return Number(x).toLocaleString(); }
+  function num(x){ if(x==null || Number.isNaN(+x)) return "—"; return Number(x).toLocaleString(undefined,{maximumFractionDigits:2}); }
+  function pct(x){ if(x==null || Number.isNaN(+x)) return "—"; const v=Number(x); const c=v>0? "var(--good)" : v<0? "var(--bad)" : "var(--muted)"; return `<span style="color:${c}">${v.toFixed(2)}%</span>`; }
+  function alertBox(node,msg){ node.textContent=msg; node.style.display="block"; }
+  function clearAlerts(){ el.warn.style.display="none"; el.err.style.display="none"; }
+  function toggleLoad(on){ el.load.style.display = on? "flex":"none"; el.run.disabled=on; el.share.disabled=on; }
+</script>
 </body>
 </html>
