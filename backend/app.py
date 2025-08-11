@@ -211,6 +211,11 @@ def compute_trader_facts(ticker: str, window_days: int = 180) -> dict:
     except Exception:
         df = fetch_ohlcv_yahoo_chart_api(ticker, start, end)
 
+    if df.index.tz is None:
+        df.index = df.index.tz_localize("UTC")
+    else:
+        df.index = df.index.tz_convert("UTC")
+
     if df.empty or "Close" not in df.columns:
         raise ValueError(f"No data for ticker {ticker}")
 
@@ -223,9 +228,14 @@ def compute_trader_facts(ticker: str, window_days: int = 180) -> dict:
     # SPY benchmark (soft fail)
     try:
         spy_df = fetch_ohlcv_yfinance("SPY", start, end)
+        if spy_df.index.tz is None:
+            spy_df.index = spy_df.index.tz_localize("UTC")
+        else:
+            spy_df.index = spy_df.index.tz_convert("UTC")
         spy_close = spy_df["Close"].dropna()
     except Exception:
         spy_close = pd.Series(dtype="float64")
+
 
     # narrow to window
     win = close.last(f"{window_days}D")
