@@ -108,3 +108,6 @@ Outputs:
   CacheBucketName:
     Description: S3 bucket used for caching stock stories
     Value: !Ref CacheBucket
+echo openai.key >> .gitignore
+git add .gitignore
+git commit -m "Add openai.key to gitignore"
