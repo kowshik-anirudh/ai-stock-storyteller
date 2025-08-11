@@ -2,13 +2,16 @@
 import os
 import json
 import math
+import time
 from datetime import datetime, timedelta, timezone
 
 import boto3
 import numpy as np
 import pandas as pd
 import yfinance as yf
-import pandas_ta as ta
+import requests
+import httpx
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
@@ -16,15 +19,26 @@ from openai import OpenAI
 
 from prompts import build_story_prompt
 
-# ---------- Config / Env ----------
+# =========================
+# Environment / Config
+# =========================
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "*").split(",") if o.strip()]
 S3_CACHE_BUCKET = os.getenv("S3_CACHE_BUCKET", "")
-S3_CACHE_TTL_SECONDS = int(os.getenv("S3_CACHE_TTL_SECONDS", "1800"))  # 30 min default
+S3_CACHE_TTL_SECONDS = int(os.getenv("S3_CACHE_TTL_SECONDS", "1800"))  # default 30 minutes
 
 s3 = boto3.client("s3")
 
+YA_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/125 Safari/537.36"
+)
+
+# =========================
+# FastAPI setup
+# =========================
 app = FastAPI(title="AI Stock Storyteller", version="2.0-trader")
 
 app.add_middleware(
@@ -34,7 +48,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------- Simple S3 cache ----------
+# =========================
+# Utility: Simple S3 cache
+# =========================
 def _cache_key(ticker: str, window_days: int) -> str:
     return f"stories/{ticker.upper()}_{int(window_days)}.json"
 
@@ -54,7 +70,6 @@ def s3_get_cached_story(ticker: str, window_days: int):
     except s3.exceptions.NoSuchKey:
         return None
     except Exception:
-        # don't break API if cache fails
         return None
     return None
 
@@ -63,35 +78,156 @@ def s3_put_cached_story(ticker: str, window_days: int, payload: dict):
         return
     key = _cache_key(ticker, window_days)
     doc = {"_cached_at": datetime.now(timezone.utc).timestamp(), "payload": payload}
-    s3.put_object(
-        Bucket=S3_CACHE_BUCKET,
-        Key=key,
-        Body=json.dumps(doc).encode("utf-8"),
-        ContentType="application/json",
-    )
+    try:
+        s3.put_object(
+            Bucket=S3_CACHE_BUCKET,
+            Key=key,
+            Body=json.dumps(doc).encode("utf-8"),
+            ContentType="application/json",
+        )
+    except Exception:
+        # cache failures shouldn't break the API
+        pass
 
-# ---------- Feature engineering for traders ----------
+# =========================
+# TA helpers (no pandas_ta)
+# =========================
+def rsi_series(close: pd.Series, length: int = 14) -> pd.Series:
+    delta = close.diff()
+    gain = delta.where(delta > 0, 0.0).rolling(length).mean()
+    loss = (-delta.where(delta < 0, 0.0)).rolling(length).mean()
+    rs = gain / loss.replace(0, np.nan)
+    return 100.0 - (100.0 / (1.0 + rs))
+
+def atr_series(high: pd.Series, low: pd.Series, close: pd.Series, length: int = 14) -> pd.Series:
+    prev_close = close.shift(1)
+    tr = pd.concat(
+        [(high - low), (high - prev_close).abs(), (low - prev_close).abs()],
+        axis=1,
+    ).max(axis=1)
+    return tr.rolling(length).mean()
+
+# =========================
+# Market data loaders
+# =========================
+def fetch_ohlcv_yfinance(ticker: str, start: datetime, end: datetime) -> pd.DataFrame:
+    """
+    yfinance with a real User-Agent + small retries.
+    """
+    sess = requests.Session()
+    sess.headers.update({"User-Agent": YA_USER_AGENT})
+
+    tries = 3
+    last_exc = None
+    for _ in range(tries):
+        try:
+            df = yf.download(
+                tickers=ticker,
+                start=start,
+                end=end,
+                progress=False,
+                auto_adjust=True,
+                session=sess,
+                threads=False,
+                interval="1d",
+            )
+            if isinstance(df, pd.DataFrame) and not df.empty and "Close" in df.columns:
+                return df
+        except Exception as e:
+            last_exc = e
+        time.sleep(0.6)
+
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("yfinance returned empty data")
+
+def fetch_ohlcv_yahoo_chart_api(ticker: str, start: datetime, end: datetime) -> pd.DataFrame:
+    """
+    Fallback loader using Yahoo's public chart API via httpx.
+    """
+    total_days = max((end - start).days, 30)
+    if total_days <= 200:
+        range_str = "6mo"
+    elif total_days <= 380:
+        range_str = "1y"
+    else:
+        range_str = "2y"
+
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+    params = {"range": range_str, "interval": "1d"}
+    headers = {"User-Agent": YA_USER_AGENT}
+
+    with httpx.Client(timeout=10.0) as client:
+        r = client.get(url, params=params, headers=headers)
+        r.raise_for_status()
+        data = r.json()
+
+    result = data.get("chart", {}).get("result", [])
+    if not result:
+        raise RuntimeError(f"Yahoo chart API returned no result for {ticker}")
+
+    res = result[0]
+    ts = res.get("timestamp", [])
+    if not ts:
+        raise RuntimeError(f"Yahoo chart API missing timestamps for {ticker}")
+
+    ind = pd.to_datetime(ts, unit="s", utc=True)
+    indicators = res.get("indicators", {})
+    quote = (indicators.get("quote") or [{}])[0]
+    adjclose = (indicators.get("adjclose") or [{}])[0].get("adjclose")
+
+    df = pd.DataFrame(
+        {
+            "Open": quote.get("open"),
+            "High": quote.get("high"),
+            "Low": quote.get("low"),
+            "Close": adjclose if adjclose else quote.get("close"),
+            "Volume": quote.get("volume"),
+        },
+        index=ind,
+    ).sort_index()
+
+    # limit to requested window
+    mask = (df.index >= pd.Timestamp(start, tz="UTC")) & (df.index <= pd.Timestamp(end, tz="UTC"))
+    df = df.loc[mask]
+    if df.empty or "Close" not in df.columns:
+        raise RuntimeError(f"Yahoo chart API empty window for {ticker}")
+    return df
+
+# =========================
+# Feature engineering
+# =========================
 def compute_trader_facts(ticker: str, window_days: int = 180) -> dict:
     """
-    Pull OHLCV for ticker & SPY. Compute returns, vol, drawdown,
-    DMAs, RSI, ATR, slope, relative strength, beta, volume stats,
-    simple support/resistance, and earnings (best-effort).
+    Pull OHLCV; compute returns, vol, drawdown, MAs, RSI, ATR, slope,
+    relative strength vs SPY, beta, volume stats, SR levels, earnings(ish).
     """
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=max(window_days + 60, 260))
 
-    df = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=True)
-    if df.empty:
+    # Primary + fallback for ticker
+    try:
+        df = fetch_ohlcv_yfinance(ticker, start, end)
+    except Exception:
+        df = fetch_ohlcv_yahoo_chart_api(ticker, start, end)
+
+    if df.empty or "Close" not in df.columns:
         raise ValueError(f"No data for ticker {ticker}")
 
     close = df["Close"].dropna().copy()
-    high = df.get("High", close)
-    low = df.get("Low", close)
-    volume = df.get("Volume", pd.Series(index=close.index, dtype="float64")).fillna(0)
+    high = df["High"] if "High" in df.columns else close
+    low = df["Low"] if "Low" in df.columns else close
+    volume = df["Volume"] if "Volume" in df.columns else pd.Series(0, index=close.index, dtype="float64")
+    volume = volume.fillna(0)
 
-    spy_close = yf.download("SPY", start=start, end=end, progress=False, auto_adjust=True)["Close"].dropna()
+    # SPY benchmark (soft fail)
+    try:
+        spy_df = fetch_ohlcv_yfinance("SPY", start, end)
+        spy_close = spy_df["Close"].dropna()
+    except Exception:
+        spy_close = pd.Series(dtype="float64")
 
-    # narrow to window (fallback to tail count)
+    # narrow to window
     win = close.last(f"{window_days}D")
     if win.empty:
         win = close.tail(window_days)
@@ -103,11 +239,11 @@ def compute_trader_facts(ticker: str, window_days: int = 180) -> dict:
             return None
 
     now_px = float(close.iloc[-1])
-    chg_5d = pct(close.iloc[-1], close.iloc[-5]) if len(close) >= 5 else None
-    chg_1m = pct(close.iloc[-1], close.iloc[-21]) if len(close) >= 21 else None
-    chg_3m = pct(close.iloc[-1], close.iloc[-63]) if len(close) >= 63 else None
-    chg_6m = pct(close.iloc[-1], close.iloc[-126]) if len(close) >= 126 else None
-    chg_1y = pct(close.iloc[-1], close.iloc[-252]) if len(close) >= 252 else None
+    chg_5d  = pct(close.iloc[-1], close.iloc[-5])   if len(close) >= 5   else None
+    chg_1m  = pct(close.iloc[-1], close.iloc[-21])  if len(close) >= 21  else None
+    chg_3m  = pct(close.iloc[-1], close.iloc[-63])  if len(close) >= 63  else None
+    chg_6m  = pct(close.iloc[-1], close.iloc[-126]) if len(close) >= 126 else None
+    chg_1y  = pct(close.iloc[-1], close.iloc[-252]) if len(close) >= 252 else None
 
     # realized vol (30d, annualized %)
     ret = close.pct_change().dropna()
@@ -122,24 +258,22 @@ def compute_trader_facts(ticker: str, window_days: int = 180) -> dict:
     else:
         max_dd_ytd = None
 
-    # moving averages + distance
-    dma20 = float(close.rolling(20).mean().iloc[-1]) if len(close) >= 20 else None
-    dma50 = float(close.rolling(50).mean().iloc[-1]) if len(close) >= 50 else None
+    # moving averages
+    dma20  = float(close.rolling(20).mean().iloc[-1])  if len(close) >= 20  else None
+    dma50  = float(close.rolling(50).mean().iloc[-1])  if len(close) >= 50  else None
     dma200 = float(close.rolling(200).mean().iloc[-1]) if len(close) >= 200 else None
 
-    def dist(p, m): return float((p / m - 1.0) * 100.0) if (p and m) else None
-    dist20 = dist(now_px, dma20)
-    dist50 = dist(now_px, dma50)
+    def dist(p, m):
+        return float((p / m - 1.0) * 100.0) if (p and m) else None
+    dist20  = dist(now_px, dma20)
+    dist50  = dist(now_px, dma50)
     dist200 = dist(now_px, dma200)
 
-    # RSI & ATR
-    rsi14 = float(ta.rsi(close, length=14).iloc[-1]) if len(close) >= 15 else None
-    try:
-        atr14 = float(ta.atr(high, low, close, length=14).iloc[-1])
-    except Exception:
-        atr14 = None
+    # RSI / ATR (pure pandas)
+    rsi14 = float(rsi_series(close, 14).iloc[-1]) if len(close) >= 15 else None
+    atr14 = float(atr_series(high, low, close, 14).iloc[-1]) if len(close) >= 15 else None
 
-    # simple slope of last 20 closes (annualized %/yr proxy)
+    # slope of last 20 closes (annualized %/yr proxy)
     slope20 = None
     if len(close) >= 20:
         y = close.tail(20).values
@@ -147,12 +281,11 @@ def compute_trader_facts(ticker: str, window_days: int = 180) -> dict:
         m, _ = np.polyfit(x, y, 1)
         slope20 = float((m / y[-1]) * 252 * 100.0)
 
-    # relative strength vs SPY (3m)
+    # relative strength vs SPY (3m) & beta
     rel_3m = None
     if len(close) >= 63 and len(spy_close) >= 63:
         rel_3m = pct(close.iloc[-1] / close.iloc[-63], spy_close.iloc[-1] / spy_close.iloc[-63])
 
-    # beta vs SPY
     beta = None
     try:
         rr = pd.concat([ret, spy_close.pct_change()], axis=1).dropna()
@@ -170,21 +303,9 @@ def compute_trader_facts(ticker: str, window_days: int = 180) -> dict:
 
     # simple support/resistance (20d)
     sr_high = float(close.tail(20).max()) if len(close) >= 20 else None
-    sr_low = float(close.tail(20).min()) if len(close) >= 20 else None
+    sr_low  = float(close.tail(20).min()) if len(close) >= 20 else None
 
-    # earnings (best-effort)
-    earnings = None
-    try:
-        tk = yf.Ticker(ticker)
-        cal = tk.calendar
-        if isinstance(cal, pd.DataFrame) and "Earnings Date" in cal.index:
-            dt = cal.loc["Earnings Date"].dropna()
-            if len(dt):
-                earnings = str(dt.iloc[0])
-    except Exception:
-        pass
-
-    # technical blurb
+    # crude technical blurb
     trend = []
     if dist20 is not None:
         trend.append("above 20DMA" if dist20 > 0 else "below 20DMA")
@@ -195,27 +316,27 @@ def compute_trader_facts(ticker: str, window_days: int = 180) -> dict:
             trend.append("bullish 20/50 cross")
     technicals = ", ".join(trend) if trend else None
 
+    # (optional) earnings — yfinance sometimes exposes calendar; safe to omit for now
+
     return {
-        # v1 compatibility
         "current_price": now_px,
-        "chg_5d": chg_5d, "chg_1m": chg_1m, "chg_3m": chg_3m, "chg_1y": chg_1y,
+        "chg_5d": chg_5d, "chg_1m": chg_1m, "chg_3m": chg_3m, "chg_6m": chg_6m, "chg_1y": chg_1y,
         "vol_30": vol_30, "max_dd_ytd": max_dd_ytd,
         "technicals": technicals, "events": None,
 
-        # trader extras
-        "chg_6m": chg_6m,
         "dma20": dma20, "dma50": dma50, "dma200": dma200,
         "dist20_pct": dist20, "dist50_pct": dist50, "dist200_pct": dist200,
         "rsi14": rsi14, "atr14": atr14, "slope20_pct_annual": slope20,
         "rel_3m_vs_spy_pct": rel_3m, "beta_vs_spy": beta,
         "avg_vol_20d": vol20, "vol_ratio": vol_ratio,
         "sr_high_20d": sr_high, "sr_low_20d": sr_low,
-        "earnings_event": earnings,
         "start": str(close.index[0]),
         "end": str(close.index[-1]),
     }
 
-# ---------- OpenAI story ----------
+# =========================
+# LLM story (OpenAI 1.x)
+# =========================
 def generate_story_openai(ticker: str, window_days: int, facts: dict) -> dict:
     if not OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY not set")
@@ -238,19 +359,21 @@ def generate_story_openai(ticker: str, window_days: int, facts: dict) -> dict:
         "suggested_tags": parsed.get("suggested_tags") or [],
     }
 
-# ---------- Routes ----------
+# =========================
+# Routes
+# =========================
 @app.get("/health")
 def health():
     return {"ok": True, "ts": datetime.now(timezone.utc).timestamp(), "build": "v2-trader"}
 
 @app.get("/api/story/{ticker}")
 def get_story(ticker: str, window_days: int = 180):
-    # 1) Try cache
+    # 0) Try cache
     cached = s3_get_cached_story(ticker, window_days)
     if cached:
         return cached
 
-    # 2) Compute facts
+    # 1) Compute facts
     try:
         facts = compute_trader_facts(ticker, window_days)
     except ValueError as e:
@@ -258,7 +381,7 @@ def get_story(ticker: str, window_days: int = 180):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to compute facts: {e}")
 
-    # 3) LLM story (fallback on quota/rate-limit)
+    # 2) LLM story (fallback if quota/rate limits)
     try:
         story = generate_story_openai(ticker, window_days, facts)
     except Exception:
@@ -266,7 +389,7 @@ def get_story(ticker: str, window_days: int = 180):
             "title": f"{ticker} (data-only fallback)",
             "tldr": "OpenAI quota/rate limit hit — showing data-only summary.",
             "narrative": (
-                f"{ticker} current: ${facts.get('current_price'):.2f} "
+                f"{ticker} current ${facts.get('current_price'):.2f}. "
                 f"5d {facts.get('chg_5d')}%, 1m {facts.get('chg_1m')}%, "
                 f"3m {facts.get('chg_3m')}%, 6m {facts.get('chg_6m')}%. "
                 f"Vol30≈{facts.get('vol_30')}%, MaxDD YTD {facts.get('max_dd_ytd')}%. "
@@ -286,7 +409,7 @@ def get_story(ticker: str, window_days: int = 180):
         "disclaimer": "Educational use only. Not investment advice.",
     }
 
-    # 4) Save to cache (best-effort)
+    # 3) Cache best-effort
     try:
         s3_put_cached_story(ticker, window_days, payload)
     except Exception:
@@ -294,5 +417,8 @@ def get_story(ticker: str, window_days: int = 180):
 
     return payload
 
-# ---------- Lambda handler ----------
+# =========================
+# Lambda entrypoint
+# =========================
+# Your Lambda config expects Handler: app.handler
 handler = Mangum(app)
