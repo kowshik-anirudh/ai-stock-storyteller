@@ -1,99 +1,103 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: AI Stock Storyteller (v2 trader) - Lambda + API Gateway + S3 cache
+Description: AI Stock Storyteller – serverless API with S3 caching
 
 Parameters:
   OpenAIKey:
     Type: String
     NoEcho: true
-    Description: OpenAI API Key
+    Description: OpenAI API key (kept as Lambda env var)
   OpenAIModel:
     Type: String
     Default: gpt-4o-mini
-    Description: OpenAI model id
+    Description: OpenAI model to use
   AllowedOrigins:
     Type: String
     Default: "*"
-    Description: Comma-separated list for CORS (e.g., https://<your-username>.github.io)
-  S3CacheTTLSeconds:
-    Type: Number
-    Default: 1800
-    Description: Cache TTL in seconds (e.g., 1800 = 30 minutes)
+    Description: CORS allowed origins (comma-separated or *)
 
-Conditions:
-  AllowAllCors: !Equals [ !Ref AllowedOrigins, "*" ]
+Globals:
+  Api:
+    Cors:
+      # Force quotes around origin so API Gateway doesn't reject bare *
+      AllowOrigin: !Sub "'${AllowedOrigins}'"
+      AllowMethods: "'GET,OPTIONS'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
 
 Resources:
-  # API Gateway (SAM shorthand)
-  ServerlessRestApi:
-    Type: AWS::Serverless::Api
-    Properties:
-      StageName: Prod
-      EndpointConfiguration: REGIONAL
-      Cors:
-        AllowMethods: "'GET,OPTIONS'"
-        AllowHeaders: "'Content-Type,Authorization,X-Requested-With,x-api-key'"
-        AllowOrigin: !If
-          - AllowAllCors
-          - "'*'"
-          - !Sub "'${AllowedOrigins}'"
-
-  # S3 cache for generated stories
   CacheBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
+  StockFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [lambda.amazonaws.com]
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+        - PolicyName: S3CacheAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:HeadObject
+                Resource:
+                  - !Sub "${CacheBucket.Arn}/*"
+
   StockFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: backend/
-      Handler: app.lambda_handler         # <-- must match your app.py (Mangum handler variable)
+      Handler: app.handler
       Runtime: python3.11
+      Architectures:
+        - x86_64
       MemorySize: 1536
       Timeout: 25
-      Policies:
-        - Statement:
-            - Effect: Allow
-              Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: "*"
-            - Effect: Allow
-              Action:
-                - s3:GetObject
-                - s3:PutObject
-                - s3:DeleteObject
-                - s3:ListBucket
-              Resource:
-                - !GetAtt CacheBucket.Arn
-                - !Sub "${CacheBucket.Arn}/*"
+      Role: !GetAtt StockFunctionRole.Arn
       Environment:
         Variables:
           OPENAI_API_KEY: !Ref OpenAIKey
           OPENAI_MODEL: !Ref OpenAIModel
           ALLOWED_ORIGINS: !Ref AllowedOrigins
           S3_CACHE_BUCKET: !Ref CacheBucket
-          S3_CACHE_TTL_SECONDS: !Ref S3CacheTTLSeconds
+          S3_CACHE_TTL_SECONDS: "1800"  # 30 minutes
       Events:
-        Health:
+        HealthV2:
           Type: Api
           Properties:
-            RestApiId: !Ref ServerlessRestApi
             Path: /health
             Method: GET
-        GetStory:
+        GetStoryV2:
           Type: Api
           Properties:
-            RestApiId: !Ref ServerlessRestApi
             Path: /api/story/{ticker}
             Method: GET
 
@@ -104,3 +108,6 @@ Outputs:
   CacheBucketName:
     Description: S3 bucket used for caching stock stories
     Value: !Ref CacheBucket
+echo openai.key >> .gitignore
+git add .gitignore
+git commit -m "Add openai.key to gitignore"
