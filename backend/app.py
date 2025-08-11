@@ -295,4 +295,4 @@ def get_story(ticker: str, window_days: int = 180):
     return payload
 
 # ---------- Lambda handler ----------
-lambda_handler = Mangum(app)
+handler = Mangum(app)
