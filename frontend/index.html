@@ -2,227 +2,402 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>AI Stock Storyteller</title>
-  <meta name="description" content="Type a ticker. Get a crisp, factual stock narrative with context, positives, and risks." />
-  <meta name="theme-color" content="#0b0d10" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f7f9fc" media="(prefers-color-scheme: light)">
-  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+  <meta name="description" content="Type a ticker, get a concise AI-generated market story." />
+  <link rel="icon" href="data:,">
   <style>
     :root{
-      --bg:#0b0d10; --text:#e8edf3; --muted:#9aa4b2; --card:#0f1216; --border:#161b22;
-      --accent:#77ffd2; --accent-2:#7aa8ff; --ring:rgba(119,255,210,.45);
-      --shadow: 0 20px 60px rgba(0,0,0,.35); --glass: rgba(255,255,255,.04);
-    }
-    @media (prefers-color-scheme: light){
-      :root{ --bg:#f7f9fc; --text:#0b0d10; --muted:#667085; --card:#ffffff; --border:#e6eaf0;
-        --shadow: 0 20px 60px rgba(0,0,0,.10); --glass: rgba(255,255,255,.6); --ring: rgba(122,168,255,.35); }
+      --bg: #0b0d10;
+      --fg: #e8eef5;
+      --muted:#9fb2c6;
+      --card:#111418;
+      --accent:#5eead4; /* teal glow */
+      --warn:#f59e0b;   /* amber */
+      --danger:#ef4444; /* red */
+      --good:#22c55e;   /* green */
+      --shadow: 0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+      --radius: 16px;
+      --ring: 0 0 0 1px rgba(255,255,255,.06), 0 0 0 8px rgba(94,234,212,.06);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
-      margin:0; background:radial-gradient(1200px 800px at 10% -20%, rgba(122,168,255,.12), transparent 45%),
-                       radial-gradient(1000px 700px at 110% 10%, rgba(119,255,210,.10), transparent 50%),
-                       var(--bg);
-      color:var(--text); font-family: Inter, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+      margin:0; background:
+      radial-gradient(1200px 800px at 80% -20%, rgba(94,234,212,.09), transparent 60%),
+      radial-gradient(1000px 700px at -10% 10%, rgba(59,130,246,.08), transparent 60%),
+      linear-gradient(180deg, #0b0d10 0%, #0b0d10 100%);
+      color:var(--fg); font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      letter-spacing:.2px;
     }
-    .container{max-width:980px;margin:0 auto;padding:28px 16px 96px}
-    header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px}
-    .brand{display:flex;align-items:center;gap:14px}
-    .logo{ width:42px;height:42px;border-radius:12px; background: conic-gradient(from 140deg at 50% 50%, var(--accent), var(--accent-2), var(--accent)); display:grid;place-items:center; box-shadow: var(--shadow); transform: translateZ(0); transition: transform .18s ease; }
-    .logo:hover{ transform: translateY(-2px) scale(1.02) }
-    .logo svg{ filter: drop-shadow(0 2px 8px rgba(0,0,0,.25)) }
-    h1{font-size:22px;line-height:1.15;margin:0}
-    .tagline{color:var(--muted);font-size:14px;margin-top:2px}
+    .wrap{max-width:1000px; margin:0 auto; padding:28px 20px 64px}
+    header{display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:22px}
+    .title{
+      display:flex; align-items:center; gap:12px; user-select:none;
+      font-weight:700; letter-spacing:.3px;
+    }
+    .logo{
+      width:38px; height:38px; border-radius:50%;
+      background: radial-gradient(120% 120% at 20% 20%, var(--accent), #60a5fa);
+      filter: drop-shadow(0 6px 20px rgba(94,234,212,.35));
+    }
+    .badge{
+      font-size:12px; color:var(--muted); padding:4px 10px; border-radius:999px;
+      background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06)
+    }
 
-    .card{ position:relative; border:1px solid var(--border); border-radius:20px; padding:20px; background: color-mix(in oklab, var(--card) 88%, transparent); box-shadow: var(--shadow); backdrop-filter: saturate(140%) blur(8px); }
-    @supports not (backdrop-filter: blur(8px)){ .card{ background:var(--card) } }
+    /* Card */
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      backdrop-filter:saturate(120%) blur(6px);
+    }
 
-    .grid{display:grid; grid-template-columns: 1fr auto auto; gap:12px; align-items:end}
-    @media (max-width:720px){ .grid{ grid-template-columns: 1fr } }
+    /* Form */
+    .panel{ padding:16px; display:flex; flex-wrap:wrap; gap:10px; align-items:center }
+    .field{
+      display:flex; flex-direction:column; gap:6px; min-width:180px; flex:1 1 220px;
+    }
+    label{font-size:12px; color:var(--muted)}
+    input, select{
+      color:var(--fg); background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.1);
+      border-radius:12px; padding:12px 14px; outline:none;
+      transition:border .15s, box-shadow .15s, transform .05s;
+    }
+    input:focus, select:focus{ box-shadow: var(--ring); border-color: rgba(94,234,212,.35) }
+    .actions{ display:flex; gap:10px; margin-left:auto }
+    button{
+      appearance:none; border:0; cursor:pointer; user-select:none;
+      padding:12px 16px; border-radius:12px; font-weight:600; letter-spacing:.2px;
+      color:#0b0d10; background:linear-gradient(180deg, var(--accent), #7dd3fc);
+      box-shadow: 0 10px 18px rgba(94,234,212,.25), inset 0 1px 0 rgba(255,255,255,.2);
+      transition: transform .05s ease, filter .2s ease, opacity .2s;
+    }
+    button:active{ transform: translateY(1px) }
+    .ghost{ background:transparent; color:var(--fg); border:1px solid rgba(255,255,255,.12) }
+    .ghost:hover{ border-color: rgba(255,255,255,.3) }
 
-    .field{position:relative}
-    .input{ width:100%; padding:16px 14px 14px 14px; border-radius:14px; border:1px solid var(--border); background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)); color:var(--text); outline:0; font-size:16px; transition: box-shadow .15s ease, border-color .15s ease, transform .04s ease; }
-    .input:focus{ box-shadow: 0 0 0 6px var(--ring); border-color: color-mix(in oklab, var(--accent-2) 40%, transparent) }
-    .input::placeholder{ color: color-mix(in oklab, var(--muted) 70%, transparent) }
-    .floating{ pointer-events:none; position:absolute; left:12px; top:12px; padding:0 6px; background:var(--card); color:var(--muted); font-size:12px; opacity:.0; transform: translateY(8px); transition: .15s ease; }
-    .input:focus + .floating, .input:not(:placeholder-shown) + .floating{ opacity:1; transform: translateY(-8px); }
+    /* Presets */
+    .presets{ display:flex; flex-wrap:wrap; gap:8px; padding:12px 16px; border-top:1px solid rgba(255,255,255,.06) }
+    .chip{
+      padding:8px 12px; border-radius:999px; font-weight:600;
+      background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+      color:var(--muted); cursor:pointer; transition: background .15s, border .15s;
+    }
+    .chip:hover{ background:rgba(255,255,255,.07); border-color: rgba(255,255,255,.18) }
 
-    .select, button{ border:1px solid var(--border); background:linear-gradient(135deg, var(--accent), var(--accent-2)); color:#03150f; font-weight:700; padding:12px 14px; border-radius:14px; cursor:pointer; font-size:15px; transition: transform .08s ease, filter .2s ease; }
-    button{ display:inline-flex; align-items:center; gap:8px }
-    button:active{ transform: translateY(1px) scale(.995) }
-    .ghost{ background:transparent; color:var(--text); border-color:var(--border); }
+    /* Results */
+    .grid{ display:grid; gap:16px; grid-template-columns: 1fr; margin-top:16px }
+    @media (min-width:900px){ .grid{ grid-template-columns: 1.2fr .8fr } }
 
-    .muted{ color:var(--muted) } .helper{ margin-top:8px; font-size:12px }
-    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center }
-    .kbd{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; border:1px solid var(--border); padding:2px 6px; border-radius:8px; font-size:12px; color:var(--muted) }
+    .section{ padding:16px }
+    .section h3{ margin:0 0 8px 0; font-size:18px }
+    .muted{ color:var(--muted) }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace }
+    .pill{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; font-size:12px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1) }
 
-    .result{ margin-top:18px } .title{ font-size:20px; margin:0 0 6px 0 }
-    .meta{ color:var(--muted); font-size:13px; margin-bottom:8px }
-    .tldr{ font-style:italic; margin:10px 0 14px }
-    .list h3{ font-size:13px; margin:18px 0 8px 0; letter-spacing:.2px; text-transform:uppercase; color:var(--muted) }
-    ul{ margin:0; padding-left:18px }
-    .tags{ margin-top:14px } .tag{ display:inline-block; margin:6px 6px 0 0; padding:6px 10px; border-radius:999px; border:1px solid var(--border); font-size:12px; color:var(--muted) }
+    ul.clean{ list-style:none; padding-left:0; margin:8px 0 0 }
+    ul.clean li{ padding:8px 0; border-bottom:1px dashed rgba(255,255,255,.07) }
+    ul.clean li:last-child{ border-bottom:0 }
 
-    .skeleton{ position:relative; height:190px; border-radius:16px; border:1px solid var(--border); background:var(--glass); overflow:hidden; }
-    .skeleton::after{ content:""; position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,.07), transparent); animation: shimmer 1.2s infinite; background-size:200% 100%; }
-    @keyframes shimmer{ 0%{ background-position:-200% 0 } 100%{ background-position:200% 0 } }
+    /* Table-like facts */
+    .facts{ display:grid; grid-template-columns: repeat(2, 1fr); gap:10px }
+    .fact{ background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px }
+    .fact .k{ color:var(--muted); font-size:12px }
+    .fact .v{ font-weight:700; margin-top:2px }
 
-    .toast{ position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#11151a; color:#fff; padding:12px 14px; border-radius:12px; border:1px solid #2a2f37; box-shadow:var(--shadow); font-size:14px; display:none; z-index:1000 }
+    /* Loader */
+    .loader{ display:none; align-items:center; gap:10px; padding:14px 16px; }
+    .spinner{
+      width:18px; height:18px; border-radius:50%;
+      border:3px solid rgba(255,255,255,.15); border-top-color: var(--accent);
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg) } }
 
-    .footer{ margin-top:34px; text-align:center; color:var(--muted); font-size:12px }
-    .sep{ height:1px; background:var(--border); margin:16px 0 }
-    @media (prefers-reduced-motion: reduce){ *{ animation: none !important; transition: none !important } }
+    /* Alert */
+    .alert{ display:none; padding:14px 16px; border-radius:12px; border:1px solid rgba(255,255,255,.12); margin-top:12px }
+    .alert.warn{ background: rgba(245, 158, 11, .08); border-color: rgba(245,158,11,.35) }
+    .alert.err{ background: rgba(239, 68, 68, .08); border-color: rgba(239,68,68,.35) }
+
+    footer{ margin-top:24px; display:flex; justify-content:space-between; align-items:center; color:var(--muted) }
+    .links{ display:flex; gap:10px; flex-wrap:wrap }
+    .link{ color:var(--muted); text-decoration:none; border-bottom:1px dashed rgba(255,255,255,.2) }
+    .link:hover{ color:var(--fg); border-bottom-color: rgba(255,255,255,.4) }
+    .small{ font-size:12px }
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="wrap">
     <header>
-      <div class="brand">
-        <div class="logo" aria-hidden="true">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M3 16l6-7 4 5 8-10" stroke="#00130a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
+      <div class="title">
+        <div class="logo" aria-hidden="true"></div>
         <div>
-          <h1>AI Stock Storyteller</h1>
-          <div class="tagline">Minimal UI. Maximum signal.</div>
+          <div style="font-size:18px;">AI Stock Storyteller</div>
+          <div class="small muted">Type a ticker, get a concise market narrative.</div>
         </div>
       </div>
-      <div class="row">
-        <span class="kbd">⌘/Ctrl</span><span class="kbd">K</span><span class="muted"> to focus</span>
-      </div>
+      <div class="badge">Serverless • AWS + OpenAI</div>
     </header>
 
-    <section class="card">
-      <div class="grid" role="search">
+    <!-- Control Panel -->
+    <section class="card" aria-labelledby="form-title">
+      <div class="panel">
         <div class="field">
-          <input id="ticker" class="input" placeholder=" " autocomplete="off" spellcheck="false" aria-label="Ticker input (e.g., AAPL)" />
-          <label class="floating" for="ticker">Ticker (e.g., AAPL, MSFT, NVDA)</label>
+          <label for="ticker">Ticker</label>
+          <input id="ticker" name="ticker" placeholder="NVDA" value="NVDA" minlength="1" maxlength="10" autocomplete="off" />
         </div>
-        <select id="window" class="select" aria-label="Window">
-          <option value="90">Last 90 days</option>
-          <option value="180" selected>Last 180 days</option>
-          <option value="365">Last 365 days</option>
-        </select>
-        <button id="go" aria-label="Tell the story">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7" stroke="#03150f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Tell the story
-        </button>
+        <div class="field" style="max-width:180px">
+          <label for="days">Window (days)</label>
+          <select id="days" name="days" aria-label="Window (days)">
+            <option value="90">90</option>
+            <option value="180" selected>180</option>
+            <option value="365">365</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button id="runBtn" type="button">Generate Story</button>
+          <button id="shareBtn" type="button" class="ghost" title="Copy link with query">Copy Link</button>
+        </div>
       </div>
-      <div class="row helper">
-        <span class="muted">Tip: Try <b>AAPL</b> or <b>NVDA</b>. Data may be delayed ~15m.</span>
-        <span class="muted">|</span>
-        <button id="share" class="ghost" aria-label="Share current link">Share</button>
-        <button id="copy" class="ghost" aria-label="Copy link">Copy link</button>
+      <div class="presets" aria-label="Presets">
+        <span class="chip" data-t="NVDA">NVDA</span>
+        <span class="chip" data-t="AAPL">AAPL</span>
+        <span class="chip" data-t="MSFT">MSFT</span>
+        <span class="chip" data-t="TSLA">TSLA</span>
+        <span class="chip" data-t="SPY">SPY</span>
+        <span class="chip" data-t="QQQ">QQQ</span>
       </div>
-
-      <div id="stage" class="result" aria-live="polite" aria-busy="false"></div>
     </section>
 
-    <div class="footer">
-      <div class="sep"></div>
-      Built with FastAPI · AWS Lambda · API Gateway · OpenAI · yfinance
-      <div class="muted" style="margin-top:6px">Educational use only. Not investment advice.</div>
+    <!-- Alerts & Loader -->
+    <div id="warn" class="alert warn"></div>
+    <div id="err" class="alert err"></div>
+    <div id="loader" class="loader"><div class="spinner"></div><div class="muted">Crunching numbers & crafting the story…</div></div>
+
+    <!-- Results -->
+    <div class="grid" id="results" hidden>
+      <!-- Left: Story -->
+      <section class="card section" id="storyCard" aria-live="polite">
+        <div class="pill" id="titleWrap">
+          <span id="storyTitle">—</span>
+        </div>
+        <p class="muted" id="tldr" style="margin:12px 0 8px"></p>
+        <p id="narrative" style="white-space:pre-wrap; margin:0"></p>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px" id="tags"></div>
+      </section>
+
+      <!-- Right: Facts -->
+      <aside class="card section">
+        <h3>Snapshot</h3>
+        <div class="facts" id="facts"></div>
+
+        <div style="margin-top:12px">
+          <h3>Highlights</h3>
+          <ul class="clean" id="positives"></ul>
+        </div>
+        <div style="margin-top:8px">
+          <h3>Risks</h3>
+          <ul class="clean" id="risks"></ul>
+        </div>
+        <p class="small muted" style="margin-top:10px" id="disclaimer"></p>
+      </aside>
     </div>
+
+    <footer>
+      <div class="small">© <span id="yr"></span> Your Name</div>
+      <div class="links small">
+        <a class="link" href="https://github.com/your-username/ai-stock-storyteller" target="_blank" rel="noreferrer">Source</a>
+        <a class="link" href="#" id="apiLink" target="_blank" rel="noreferrer">Last API call</a>
+      </div>
+    </footer>
   </div>
 
-  <div id="toast" class="toast" role="status" aria-live="assertive"></div>
-
   <script>
-    // ======= SET THIS AFTER BACKEND DEPLOY =======
-    // Example (us-west-2):
-    // "https://abcd1234.execute-api.us-west-2.amazonaws.com/Prod/api"
-    const API_BASE = "https://hzvhm120y9.execute-api.us-west-2.amazonaws.com/Prod/api";
+    // ====== CONFIG ======
+    const API_BASE = "https://cq094tylu1.execute-api.us-west-2.amazonaws.com/Prod/api";
+    // If you enable API keys on API Gateway later, add it here:
+    const API_KEY = ""; // e.g. "abcd123..."
+    // ====================
 
+    const $ = s => document.querySelector(s);
+    const $$ = s => Array.from(document.querySelectorAll(s));
+    const el = {
+      t: $("#ticker"), d: $("#days"), run: $("#runBtn"), share: $("#shareBtn"),
+      warn: $("#warn"), err: $("#err"), load: $("#loader"),
+      res: $("#results"), title: $("#storyTitle"), tldr: $("#tldr"), narrative: $("#narrative"),
+      tags: $("#tags"), facts: $("#facts"), pos: $("#positives"), risks: $("#risks"),
+      disc: $("#disclaimer"), apiLink: $("#apiLink"),
+    };
 
-    const $ = sel => document.querySelector(sel);
-    const stage = $('#stage');
-    const toast = $('#toast');
-    const fmtNum = n => new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(+n || 0);
+    document.getElementById("yr").textContent = new Date().getFullYear();
 
-    function showToast(msg){
-      toast.textContent = msg; toast.style.display='block';
-      clearTimeout(showToast._t); showToast._t = setTimeout(()=>toast.style.display='none', 2500);
-    }
-    function setLoading(on){
-      stage.setAttribute('aria-busy', on ? 'true' : 'false');
-      stage.innerHTML = on ? `<div class="skeleton" aria-hidden="true"></div>` : '';
-    }
-    function escapeHtml(str){
-      return String(str ?? '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[s]));
-    }
-    function getParams(){
-      const t = ($('#ticker').value || '').trim().toUpperCase();
-      const w = $('#window').value;
-      return {t, w};
-    }
-    function updateURL(t, w){
-      const url = new URL(location.href);
-      url.searchParams.set('t', t);
-      url.searchParams.set('w', w);
-      history.replaceState(null, '', url.toString());
-    }
+    // Preset chips
+    $$(".chip").forEach(c => c.addEventListener("click", () => {
+      el.t.value = c.dataset.t;
+      go();
+    }));
 
-    async function run(){
-      const {t, w} = getParams();
-      if(!t){ showToast('Please enter a ticker'); $('#ticker').focus(); return; }
-      if(!API_BASE || API_BASE.includes('YOUR_API_URL')){ showToast('Set API_BASE in the HTML first.'); return; }
+    // Buttons
+    el.run.addEventListener("click", go);
+    el.share.addEventListener("click", () => {
+      const u = new URL(location.href);
+      u.searchParams.set("ticker", el.t.value.trim().toUpperCase());
+      u.searchParams.set("days", el.d.value);
+      navigator.clipboard.writeText(u.toString()).then(() => toast("Link copied"));
+    });
 
-      try{ localStorage.setItem('last_ticker', t); }catch(_){}
-      updateURL(t, w);
-      setLoading(true);
+    // Enter key on ticker field
+    el.t.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
 
+    // On load, hydrate from URL
+    (function initFromQuery(){
+      const q = new URLSearchParams(location.search);
+      const t = (q.get("ticker") || el.t.value || "NVDA").toUpperCase();
+      const days = q.get("days") || el.d.value || "180";
+      el.t.value = t; el.d.value = days;
+      go(false);
+    })();
+
+    async function go(showToast = true){
+      clearAlerts();
+      const ticker = el.t.value.trim().toUpperCase();
+      const days = parseInt(el.d.value, 10) || 180;
+      if(!ticker){ alertBox(el.err, "Please enter a ticker."); return; }
+
+      const url = `${API_BASE}/story/${encodeURIComponent(ticker)}?window_days=${days}`;
+      el.apiLink.href = url;
+
+      toggleLoading(true);
       try{
-        const res = await fetch(`${API_BASE}/story/${encodeURIComponent(t)}?window_days=${encodeURIComponent(w)}`);
-        if(!res.ok) throw new Error(await res.text());
+        const res = await fetch(url, {
+          method: "GET",
+          headers: Object.assign(
+            {"Accept":"application/json"},
+            API_KEY ? {"x-api-key": API_KEY} : {}
+          )
+        });
+        if(!res.ok){
+          const text = await res.text();
+          throw new Error(`API ${res.status}: ${text || res.statusText}`);
+        }
         const data = await res.json();
         render(data);
+        if (showToast) toast("Story generated");
       }catch(err){
-        setLoading(false);
-        showToast('Error: ' + (err.message || 'request failed'));
+        alertBox(el.err, err.message || "Request failed");
+        el.res.hidden = true;
+      }finally{
+        toggleLoading(false);
       }
     }
 
     function render(data){
-      const f = data.facts || {};
-      const s = data.story || {};
-      setLoading(false);
-      stage.innerHTML = `
-        <article class="card">
-          <h2 class="title">${escapeHtml(s.title || 'Stock Story')}</h2>
-          <div class="meta">
-            <strong>${escapeHtml(data.ticker || '')}</strong>
-            &nbsp;•&nbsp; window: ${fmtNum(data.window_days || 0)}d
-            &nbsp;•&nbsp; price: $${fmtNum(f.current_price)}
-            &nbsp;•&nbsp; 1M: ${fmtNum(f.chg_1m)}% • 3M: ${fmtNum(f.chg_3m)}% • 1Y: ${fmtNum(f.chg_1y)}% • Vol(30d): ${fmtNum(f.vol_30)}
-          </div>
-          ${s.tldr ? `<p class="tldr"><strong>TL;DR:</strong> ${escapeHtml(s.tldr)}</p>` : ''}
-          ${s.narrative ? `<p>${escapeHtml(s.narrative)}</p>` : ''}
-          ${(s.positives && s.positives.length) ? `<div class="list"><h3>Positives</h3><ul>${s.positives.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div>`:''}
-          ${(s.risks && s.risks.length) ? `<div class="list"><h3>Risks</h3><ul>${s.risks.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div>`:''}
-          ${(s.suggested_tags && s.suggested_tags.length) ? `<div class="tags">${s.suggested_tags.map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>`:''}
-          ${data.disclaimer ? `<p class="muted" style="margin-top:14px">${escapeHtml(data.disclaimer)}</p>`:''}
-        </article>
-      `;
+      // Data contract:
+      // { ticker, window_days, facts: {...}, story: {title,tldr,narrative,positives[],risks[],suggested_tags[]}, disclaimer }
+      const { ticker, window_days, facts = {}, story = {}, disclaimer="" } = data || {};
+      el.res.hidden = false;
+
+      // Title & tags
+      el.title.textContent = story.title || `${ticker} story`;
+      el.tags.innerHTML = "";
+      (story.suggested_tags || []).forEach(tag => {
+        const s = document.createElement("span");
+        s.className = "pill"; s.textContent = `#${tag}`;
+        el.tags.appendChild(s);
+      });
+
+      // TL;DR + narrative
+      el.tldr.textContent = story.tldr || "";
+      el.narrative.textContent = story.narrative || "";
+
+      // Facts grid
+      const fx = [
+        ["Current Price", nfmt(facts.current_price, "$")],
+        ["5d Change", pfmt(facts.chg_5d)],
+        ["1m Change", pfmt(facts.chg_1m)],
+        ["3m Change", pfmt(facts.chg_3m)],
+        ["1y Change", pfmt(facts.chg_1y)],
+        ["Vol (30d σ)", pfmt(facts.vol_30)],
+        ["MaxDD YTD", pfmt(facts.max_dd_ytd)],
+        ["Technicals", facts.technicals || "—"],
+        ["Events", facts.events || "—"],
+        ["Window", `${window_days}d`]
+      ];
+      el.facts.innerHTML = fx.map(([k,v]) => `
+        <div class="fact">
+          <div class="k">${k}</div>
+          <div class="v mono">${v}</div>
+        </div>
+      `).join("");
+
+      // Positives / Risks
+      listTo(el.pos, story.positives);
+      listTo(el.risks, story.risks);
+
+      // Disclaimer
+      el.disc.textContent = disclaimer || "Educational use only. Not investment advice.";
+
+      // Fallback warning
+      const isFallback = (story.suggested_tags || []).includes("fallback");
+      if(isFallback){
+        alertBox(el.warn, "Showing fallback (model quota/rate limit hit). Data-only summary displayed.");
+      } else {
+        el.warn.style.display = "none";
+      }
     }
 
-    $('#go').addEventListener('click', run);
-    $('#ticker').addEventListener('keydown', e=>{ if(e.key==='Enter') run(); });
-    document.addEventListener('keydown', e=>{
-      if((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); $('#ticker').focus(); }
-    });
+    function listTo(node, arr){
+      node.innerHTML = "";
+      (arr || []).forEach(x => {
+        const li = document.createElement("li");
+        li.textContent = x;
+        node.appendChild(li);
+      });
+      if(!arr || arr.length === 0){
+        const li = document.createElement("li");
+        li.className = "muted"; li.textContent = "—";
+        node.appendChild(li);
+      }
+    }
 
-    (function init(){
-      const url = new URL(location.href);
-      const t = url.searchParams.get('t') || localStorage.getItem('last_ticker') || '';
-      const w = url.searchParams.get('w') || '180';
-      if(t) $('#ticker').value = t;
-      $('#window').value = w;
-      if(t) requestIdleCallback ? requestIdleCallback(run) : setTimeout(run, 50);
-    })();
+    function nfmt(x, prefix=""){
+      if(x == null || Number.isNaN(+x)) return "—";
+      return prefix + Number(x).toLocaleString(undefined, {maximumFractionDigits:2});
+    }
+    function pfmt(x){
+      if(x == null || Number.isNaN(+x)) return "—";
+      const v = Number(x);
+      const color = v > 0 ? "var(--good)" : (v < 0 ? "var(--danger)" : "var(--muted)");
+      return `<span style="color:${color}">${v.toFixed(2)}%</span>`;
+    }
+
+    function toggleLoading(on){
+      el.load.style.display = on ? "flex" : "none";
+      el.run.disabled = on; el.share.disabled = on;
+    }
+    function alertBox(node, msg){
+      node.textContent = msg; node.style.display = "block";
+    }
+    function clearAlerts(){
+      el.warn.style.display = "none";
+      el.err.style.display = "none";
+    }
+    function toast(msg){
+      // tiny inline toast
+      const t = document.createElement("div");
+      t.textContent = msg;
+      t.style.position="fixed"; t.style.bottom="18px"; t.style.left="50%"; t.style.transform="translateX(-50%)";
+      t.style.background="rgba(255,255,255,.08)"; t.style.border="1px solid rgba(255,255,255,.18)";
+      t.style.padding="10px 14px"; t.style.borderRadius="999px"; t.style.boxShadow="var(--shadow)";
+      t.style.backdropFilter="blur(6px)"; t.style.zIndex=9999;
+      document.body.appendChild(t);
+      setTimeout(()=>{ t.style.opacity="0"; t.style.transition="opacity .4s"; }, 1400);
+      setTimeout(()=> t.remove(), 1900);
+    }
   </script>
 </body>
 </html>
