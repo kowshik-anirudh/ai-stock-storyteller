@@ -36,7 +36,8 @@ Most trading dashboards just show numbers.
 ---
 
 ## 🛠 Architecture
-<img width="1589" height="964" alt="image" src="https://github.com/user-attachments/assets/ee972441-ccc0-4667-8a18-b24a6404497d" />
+<img width="2503" height="2143" alt="image" src="https://github.com/user-attachments/assets/d8d0a261-7bc5-44fb-bca8-f34f7e0193f2" />
+
 
 
 **Flow:**
