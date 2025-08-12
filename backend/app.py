@@ -23,7 +23,7 @@ YA_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (K
 # =========================
 # App & CORS
 # =========================
-app = FastAPI(title="AI Stock Storyteller", version="2.0-trader")
+app = FastAPI(title="MarketPulse", version="3.0-charts")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"] if ALLOWED_ORIGINS == ["*"] else ALLOWED_ORIGINS,
@@ -136,7 +136,7 @@ def fetch_ohlcv_yahoo_chart_api(ticker: str, start: datetime, end: datetime) -> 
 # =========================
 # Feature engineering
 # =========================
-def compute_trader_facts(ticker: str, window_days: int = 180) -> dict:
+def compute_trader_facts_and_window_df(ticker: str, window_days: int = 180):
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=max(window_days + 60, 260))
     try:
@@ -154,6 +154,11 @@ def compute_trader_facts(ticker: str, window_days: int = 180) -> dict:
     high  = df["High"] if "High" in df.columns else close
     low   = df["Low"]  if "Low"  in df.columns else close
     volume = (df["Volume"] if "Volume" in df.columns else pd.Series(0, index=close.index, dtype="float64")).fillna(0)
+
+    # Slice the primary window for chart (last N days)
+    start_window = close.index[-1] - pd.Timedelta(days=window_days)
+    wmask = close.index >= start_window
+    dfw = df.loc[wmask].copy()
 
     # SPY (soft fail)
     try:
@@ -225,7 +230,7 @@ def compute_trader_facts(ticker: str, window_days: int = 180) -> dict:
         if prev20 and prev50 and dma20 > dma50 and prev20 <= prev50: trend.append("bullish 20/50 cross")
     technicals = ", ".join(trend) if trend else None
 
-    return {
+    facts = {
         "current_price": now_px,
         "chg_5d": chg_5d, "chg_1m": chg_1m, "chg_3m": chg_3m, "chg_6m": chg_6m, "chg_1y": chg_1y,
         "vol_30": vol_30, "max_dd_ytd": max_dd_ytd, "technicals": technicals, "events": None,
@@ -237,6 +242,28 @@ def compute_trader_facts(ticker: str, window_days: int = 180) -> dict:
         "sr_high_20d": sr_high, "sr_low_20d": sr_low,
         "start": str(close.index[0]), "end": str(close.index[-1]),
     }
+
+    # Chart payload (window slice)
+    dfw = dfw[["Open", "High", "Low", "Close", "Volume"]].dropna()
+    # ensure tz-aware UTC ISO strings
+    idx = dfw.index
+    if idx.tz is None:
+        idx = idx.tz_localize("UTC")
+    else:
+        idx = idx.tz_convert("UTC")
+    chart = [
+        {
+            "t": idx[i].isoformat(),
+            "o": float(dfw["Open"].iloc[i]),
+            "h": float(dfw["High"].iloc[i]),
+            "l": float(dfw["Low"].iloc[i]),
+            "c": float(dfw["Close"].iloc[i]),
+            "v": float(dfw["Volume"].iloc[i]) if not pd.isna(dfw["Volume"].iloc[i]) else 0.0,
+        }
+        for i in range(len(dfw))
+    ]
+
+    return facts, chart
 
 # =========================
 # Prompt builder (inline)
@@ -252,7 +279,7 @@ Use the JSON schema: {{
   "risks": [str],
   "suggested_tags": [str]
 }}
-Focus on risk/return, momentum, volatility, trend, and key levels.
+Focus on risk/return, momentum, volatility, trend, key levels, and confirm signals with data.
 Data (do not invent):
 current=${f.get('current_price')}
 chg_5d={f.get('chg_5d')}%
@@ -311,7 +338,7 @@ def generate_story_openai(ticker: str, window_days: int, facts: dict) -> dict:
 # =========================
 @app.get("/health")
 def health():
-    return {"ok": True, "ts": datetime.now(timezone.utc).timestamp(), "build": "v2-trader-inline"}
+    return {"ok": True, "ts": datetime.now(timezone.utc).timestamp(), "build": "marketpulse-v3-charts"}
 
 @app.get("/api/story/{ticker}")
 def get_story(ticker: str, window_days: int = 180):
@@ -319,7 +346,7 @@ def get_story(ticker: str, window_days: int = 180):
     if cached: return cached
 
     try:
-        facts = compute_trader_facts(ticker, window_days)
+        facts, chart = compute_trader_facts_and_window_df(ticker, window_days)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -343,10 +370,12 @@ def get_story(ticker: str, window_days: int = 180):
         }
 
     payload = {
+        "brand": "MarketPulse",
         "ticker": ticker.upper(),
         "window_days": int(window_days),
         "facts": facts,
         "story": story,
+        "chart": chart,  # NEW: array of {t,o,h,l,c,v}
         "disclaimer": "Educational use only. Not investment advice.",
     }
     try: s3_put_cached_story(ticker, window_days, payload)
@@ -354,6 +383,6 @@ def get_story(ticker: str, window_days: int = 180):
     return payload
 
 # =========================
-# Lambda entrypoint (matches template Handler: app.handler)
+# Lambda entrypoint
 # =========================
 handler = Mangum(app)
