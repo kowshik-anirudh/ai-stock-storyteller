@@ -7,7 +7,7 @@ It combines **live stock data**, **technical analysis**, and **AI-powered summar
 
 ## 🚀 Why MarketPulse?
 Most trading dashboards just show numbers.  
-**MarketPulse** explains what’s happening — in plain language — and backs it with interactive visuals.
+**MarketPulse** explains what’s happening — in plain language — and backs it with interactive visuals. - [Click here to check it out here](https://kowshik-anirudh.github.io/ai-stock-storyteller/?v=force-$(Get-Date%20-Format%20yyyyMMddHHmmss))
 
 ---
 
@@ -47,16 +47,20 @@ Most trading dashboards just show numbers.
 
 ---
 
-Landing Page: <img width="1374" height="888" alt="Landing page" src="https://github.com/user-attachments/assets/2fc0511f-f30f-44e0-9370-5cb4e368609a" />
+Landing Page: 
+<img width="1374" height="888" alt="Landing page" src="https://github.com/user-attachments/assets/2fc0511f-f30f-44e0-9370-5cb4e368609a" />
 
 
-Key Facts Panel: <img width="530" height="551" alt="Key Facts" src="https://github.com/user-attachments/assets/90ce67c4-4d3d-4290-939f-c094b4f7a491" />
+Key Facts Panel: 
+<img width="530" height="551" alt="Key Facts" src="https://github.com/user-attachments/assets/90ce67c4-4d3d-4290-939f-c094b4f7a491" />
 
 
-Interactive Chart: <img width="1233" height="575" alt="Interactive Chart" src="https://github.com/user-attachments/assets/3f0d5913-66bf-4408-a731-416cbc4ff86e" />
+Interactive Chart: 
+<img width="1233" height="575" alt="Interactive Chart" src="https://github.com/user-attachments/assets/3f0d5913-66bf-4408-a731-416cbc4ff86e" />
 
 
-AI Summary: <img width="546" height="884" alt="AI Summary" src="https://github.com/user-attachments/assets/fc728cca-8618-48bc-926c-721c8070bafe" />
+AI Summary: 
+<img width="546" height="884" alt="AI Summary" src="https://github.com/user-attachments/assets/fc728cca-8618-48bc-926c-721c8070bafe" />
 
 
 
