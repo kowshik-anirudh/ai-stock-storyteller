@@ -2,403 +2,357 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AI Stock Storyteller</title>
-  <meta name="description" content="Type a ticker, get a concise AI-generated market story." />
-  <link rel="icon" href="data:,">
+  <meta name="description" content="AI-generated trader briefs + market facts for any US ticker." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
   <style>
     :root{
-      --bg: #0b0d10;
-      --fg: #e8eef5;
-      --muted:#9fb2c6;
-      --card:#111418;
-      --accent:#5eead4; /* teal glow */
-      --warn:#f59e0b;   /* amber */
-      --danger:#ef4444; /* red */
-      --good:#22c55e;   /* green */
-      --shadow: 0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+      --bg:#0b0d11;
+      --panel:#0f1218;
+      --muted:#9aa4af;
+      --text:#e8ecf1;
+      --brand:#74c0fc;
+      --accent:#a78bfa;
+      --ok:#22c55e;
+      --warn:#f59e0b;
+      --danger:#ef4444;
+      --ring: 0 0 0 2px rgba(167,139,250,.35);
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --glass: rgba(255,255,255,.06);
+      --glass-border: 1px solid rgba(255,255,255,.08);
       --radius: 16px;
-      --ring: 0 0 0 1px rgba(255,255,255,.06), 0 0 0 8px rgba(94,234,212,.06);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
-      margin:0; background:
-      radial-gradient(1200px 800px at 80% -20%, rgba(94,234,212,.09), transparent 60%),
-      radial-gradient(1000px 700px at -10% 10%, rgba(59,130,246,.08), transparent 60%),
-      linear-gradient(180deg, #0b0d10 0%, #0b0d10 100%);
-      color:var(--fg); font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-      letter-spacing:.2px;
+      margin:0;
+      background: radial-gradient(1200px 800px at 10% -10%, rgba(116,192,252,.08), transparent 40%),
+                  radial-gradient(900px 700px at 110% 10%, rgba(167,139,250,.10), transparent 45%),
+                  var(--bg);
+      color:var(--text);
+      font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      letter-spacing:.1px;
     }
-    .wrap{max-width:1000px; margin:0 auto; padding:28px 20px 64px}
-    header{display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:22px}
-    .title{
-      display:flex; align-items:center; gap:12px; user-select:none;
-      font-weight:700; letter-spacing:.3px;
+    a{color:var(--brand); text-decoration:none}
+    a:hover{text-decoration:underline}
+    .wrap{max-width:980px;margin:32px auto;padding:0 16px}
+    header{
+      display:flex;align-items:center;justify-content:space-between;margin-bottom:20px
+    }
+    .brand{
+      display:flex;gap:12px;align-items:center;
     }
     .logo{
-      width:38px; height:38px; border-radius:50%;
-      background: radial-gradient(120% 120% at 20% 20%, var(--accent), #60a5fa);
-      filter: drop-shadow(0 6px 20px rgba(94,234,212,.35));
-    }
-    .badge{
-      font-size:12px; color:var(--muted); padding:4px 10px; border-radius:999px;
-      background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06)
-    }
-
-    /* Card */
-    .card{
-      background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
-      border:1px solid rgba(255,255,255,.08);
-      border-radius:var(--radius);
+      width:44px;height:44px;border-radius:12px;
+      background:
+        radial-gradient(180px 80px at 80% -40%, rgba(167,139,250,.6), transparent 50%),
+        radial-gradient(160px 120px at -20% 120%, rgba(116,192,252,.6), transparent 55%),
+        linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.04));
+      backdrop-filter: blur(6px);
+      border:var(--glass-border);
       box-shadow:var(--shadow);
-      backdrop-filter:saturate(120%) blur(6px);
     }
+    .title{font-weight:700;font-size:20px}
+    .sub{color:var(--muted);font-size:13px;margin-top:2px}
 
-    /* Form */
-    .panel{ padding:16px; display:flex; flex-wrap:wrap; gap:10px; align-items:center }
-    .field{
-      display:flex; flex-direction:column; gap:6px; min-width:180px; flex:1 1 220px;
+    .panel{
+      background:var(--glass); border:var(--glass-border);
+      border-radius:var(--radius); box-shadow:var(--shadow);
     }
-    label{font-size:12px; color:var(--muted)}
-    input, select{
-      color:var(--fg); background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.1);
-      border-radius:12px; padding:12px 14px; outline:none;
-      transition:border .15s, box-shadow .15s, transform .05s;
+    .search{
+      padding:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center
     }
-    input:focus, select:focus{ box-shadow: var(--ring); border-color: rgba(94,234,212,.35) }
-    .actions{ display:flex; gap:10px; margin-left:auto }
+    .field{flex:1;min-width:240px;position:relative}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input[type="text"], input[type="number"], select{
+      width:100%; padding:12px 14px; background:#0c0f14; color:var(--text);
+      border:1px solid #1b2230; border-radius:12px; outline:none; font-size:14px;
+      transition: box-shadow .15s, border-color .15s;
+    }
+    input[type="text"]:focus, input[type="number"]:focus, select:focus{
+      border-color:#3b82f6; box-shadow: var(--ring);
+    }
+    .actions{display:flex;gap:12px;align-items:flex-end}
     button{
-      appearance:none; border:0; cursor:pointer; user-select:none;
-      padding:12px 16px; border-radius:12px; font-weight:600; letter-spacing:.2px;
-      color:#0b0d10; background:linear-gradient(180deg, var(--accent), #7dd3fc);
-      box-shadow: 0 10px 18px rgba(94,234,212,.25), inset 0 1px 0 rgba(255,255,255,.2);
-      transition: transform .05s ease, filter .2s ease, opacity .2s;
+      padding:12px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.12);
+      background:linear-gradient(180deg, rgba(55,65,81,.6), rgba(30,41,59,.6));
+      color:var(--text); font-weight:600; cursor:pointer; transition:.15s;
     }
-    button:active{ transform: translateY(1px) }
-    .ghost{ background:transparent; color:var(--fg); border:1px solid rgba(255,255,255,.12) }
-    .ghost:hover{ border-color: rgba(255,255,255,.3) }
-
-    /* Presets */
-    .presets{ display:flex; flex-wrap:wrap; gap:8px; padding:12px 16px; border-top:1px solid rgba(255,255,255,.06) }
-    .chip{
-      padding:8px 12px; border-radius:999px; font-weight:600;
-      background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
-      color:var(--muted); cursor:pointer; transition: background .15s, border .15s;
+    button:hover{transform:translateY(-1px)}
+    button.primary{
+      background:linear-gradient(180deg, #2563eb, #1d4ed8); border:none;
     }
-    .chip:hover{ background:rgba(255,255,255,.07); border-color: rgba(255,255,255,.18) }
 
-    /* Results */
-    .grid{ display:grid; gap:16px; grid-template-columns: 1fr; margin-top:16px }
-    @media (min-width:900px){ .grid{ grid-template-columns: 1.2fr .8fr } }
-
-    .section{ padding:16px }
-    .section h3{ margin:0 0 8px 0; font-size:18px }
-    .muted{ color:var(--muted) }
-    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace }
-    .pill{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; font-size:12px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1) }
-
-    ul.clean{ list-style:none; padding-left:0; margin:8px 0 0 }
-    ul.clean li{ padding:8px 0; border-bottom:1px dashed rgba(255,255,255,.07) }
-    ul.clean li:last-child{ border-bottom:0 }
-
-    /* Table-like facts */
-    .facts{ display:grid; grid-template-columns: repeat(2, 1fr); gap:10px }
-    .fact{ background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px }
-    .fact .k{ color:var(--muted); font-size:12px }
-    .fact .v{ font-weight:700; margin-top:2px }
-
-    /* Loader */
-    .loader{ display:none; align-items:center; gap:10px; padding:14px 16px; }
-    .spinner{
-      width:18px; height:18px; border-radius:50%;
-      border:3px solid rgba(255,255,255,.15); border-top-color: var(--accent);
-      animation: spin 1s linear infinite;
+    .suggestions{
+      position:absolute; top:70px; left:0; right:0;
+      background:#0c0f14; border:1px solid #1b2230; border-radius:12px; z-index:10;
+      max-height:280px; overflow:auto; box-shadow:var(--shadow);
     }
-    @keyframes spin { to { transform: rotate(360deg) } }
+    .suggestions div{
+      padding:10px 12px; cursor:pointer; display:flex; justify-content:space-between; gap:8px;
+      border-bottom:1px solid rgba(255,255,255,.04);
+    }
+    .suggestions div:last-child{border-bottom:0}
+    .suggestions div:hover{background:#0f1520}
+    .ticker{font-weight:700}
+    .name{color:var(--muted);font-size:13px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
 
-    /* Alert */
-    .alert{ display:none; padding:14px 16px; border-radius:12px; border:1px solid rgba(255,255,255,.12); margin-top:12px }
-    .alert.warn{ background: rgba(245, 158, 11, .08); border-color: rgba(245,158,11,.35) }
-    .alert.err{ background: rgba(239, 68, 68, .08); border-color: rgba(239,68,68,.35) }
+    .grid{display:grid;grid-template-columns:1.2fr .8fr; gap:16px; margin-top:16px}
+    @media (max-width:900px){ .grid{grid-template-columns:1fr} }
 
-    footer{ margin-top:24px; display:flex; justify-content:space-between; align-items:center; color:var(--muted) }
-    .links{ display:flex; gap:10px; flex-wrap:wrap }
-    .link{ color:var(--muted); text-decoration:none; border-bottom:1px dashed rgba(255,255,255,.2) }
-    .link:hover{ color:var(--fg); border-bottom-color: rgba(255,255,255,.4) }
-    .small{ font-size:12px }
+    .card{padding:16px}
+    .card h3{margin:0 0 10px 0; font-size:16px}
+    .meta{font-size:13px;color:var(--muted);margin-bottom:8px}
+    .kvs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .kv{
+      padding:10px 12px; background:#0c0f14; border:1px solid #1b2230; border-radius:12px; font-size:13px;
+    }
+    .kv b{display:block;color:#cbd5e1;font-size:12px;margin-bottom:4px;font-weight:600}
+    .badge{display:inline-block; padding:4px 8px; border-radius:999px; background:#0c0f14; border:1px solid #1b2230; font-size:12px; color:#cbd5e1}
+    .row{display:flex;flex-wrap:wrap;gap:8px}
+
+    .loading{
+      display:none; align-items:center; gap:8px; color:var(--muted); font-size:14px; padding:0 16px 16px 16px
+    }
+    .spinner{width:16px;height:16px;border:2px solid #3b82f6;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    footer{margin:26px 0 60px;color:var(--muted);font-size:12px;text-align:center}
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
-      <div class="title">
-        <div class="logo" aria-hidden="true"></div>
+      <div class="brand">
+        <div class="logo"></div>
         <div>
-          <div style="font-size:18px;">AI Stock Storyteller</div>
-          <div class="small muted">Type a ticker, get a concise market narrative.</div>
+          <div class="title">AI Stock Storyteller</div>
+          <div class="sub">Trader-style briefs + market facts, on demand</div>
         </div>
       </div>
-      <div class="badge">Serverless • AWS + OpenAI</div>
+      <div class="sub">v2</div>
     </header>
 
-    <!-- Control Panel -->
-    <section class="card" aria-labelledby="form-title">
-      <div class="panel">
+    <section class="panel">
+      <div class="search">
         <div class="field">
           <label for="ticker">Ticker</label>
-          <input id="ticker" name="ticker" placeholder="NVDA" value="NVDA" minlength="1" maxlength="10" autocomplete="off" />
+          <input id="ticker" type="text" placeholder="AAPL, NVDA, MSFT…" autocomplete="off" />
+          <div id="suggestions" class="suggestions" style="display:none;"></div>
         </div>
-        <div class="field" style="max-width:180px">
-          <label for="days">Window (days)</label>
-          <select id="days" name="days" aria-label="Window (days)">
+        <div class="field" style="max-width:220px">
+          <label for="window">Lookback Window (days)</label>
+          <select id="window">
             <option value="90">90</option>
+            <option value="120">120</option>
             <option value="180" selected>180</option>
+            <option value="270">270</option>
             <option value="365">365</option>
           </select>
         </div>
         <div class="actions">
-          <button id="runBtn" type="button">Generate Story</button>
-          <button id="shareBtn" type="button" class="ghost" title="Copy link with query">Copy Link</button>
+          <button id="btnFetch" class="primary">Get Story</button>
+          <button id="btnClear">Clear</button>
         </div>
       </div>
-      <div class="presets" aria-label="Presets">
-        <span class="chip" data-t="NVDA">NVDA</span>
-        <span class="chip" data-t="AAPL">AAPL</span>
-        <span class="chip" data-t="MSFT">MSFT</span>
-        <span class="chip" data-t="TSLA">TSLA</span>
-        <span class="chip" data-t="SPY">SPY</span>
-        <span class="chip" data-t="QQQ">QQQ</span>
-      </div>
+      <div id="loading" class="loading"><div class="spinner"></div>Fetching live data…</div>
     </section>
 
-    <!-- Alerts & Loader -->
-    <div id="warn" class="alert warn"></div>
-    <div id="err" class="alert err"></div>
-    <div id="loader" class="loader"><div class="spinner"></div><div class="muted">Crunching numbers & crafting the story…</div></div>
+    <div class="grid">
+      <section class="panel card">
+        <h3 id="storyTitle">Story</h3>
+        <div class="meta" id="storyMeta">—</div>
+        <p id="storyTLDR" style="font-weight:600;margin:8px 0 12px 0;">—</p>
+        <p id="storyText" style="line-height:1.6;color:#d6dee6;">—</p>
 
-    <!-- Results -->
-    <div class="grid" id="results" hidden>
-      <!-- Left: Story -->
-      <section class="card section" id="storyCard" aria-live="polite">
-        <div class="pill" id="titleWrap">
-          <span id="storyTitle">—</span>
+        <div style="margin-top:14px">
+          <div class="sub" style="margin:8px 0 6px">Positives</div>
+          <div id="positives" class="row"></div>
         </div>
-        <p class="muted" id="tldr" style="margin:12px 0 8px"></p>
-        <p id="narrative" style="white-space:pre-wrap; margin:0"></p>
-
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px" id="tags"></div>
+        <div style="margin-top:12px">
+          <div class="sub" style="margin:8px 0 6px">Risks</div>
+          <div id="risks" class="row"></div>
+        </div>
+        <div style="margin-top:12px">
+          <div class="sub" style="margin:8px 0 6px">Tags</div>
+          <div id="tags" class="row"></div>
+        </div>
       </section>
 
-      <!-- Right: Facts -->
-      <aside class="card section">
-        <h3>Snapshot</h3>
-        <div class="facts" id="facts"></div>
-
-        <div style="margin-top:12px">
-          <h3>Highlights</h3>
-          <ul class="clean" id="positives"></ul>
+      <aside class="panel card">
+        <h3>Key Facts</h3>
+        <div id="facts" class="kvs">
+          <!-- populated by JS -->
         </div>
-        <div style="margin-top:8px">
-          <h3>Risks</h3>
-          <ul class="clean" id="risks"></ul>
-        </div>
-        <p class="small muted" style="margin-top:10px" id="disclaimer"></p>
       </aside>
     </div>
 
-    <footer>
-      <div class="small">© <span id="yr"></span> Your Name</div>
-      <div class="links small">
-        <a class="link" href="https://github.com/your-username/ai-stock-storyteller" target="_blank" rel="noreferrer">Source</a>
-        <a class="link" href="#" id="apiLink" target="_blank" rel="noreferrer">Last API call</a>
-      </div>
-    </footer>
+    <footer>© <span id="year"></span> Anirudh Kowshik — built with FastAPI + Lambda + API Gateway</footer>
   </div>
 
   <script>
     // ====== CONFIG ======
-    const API_BASE = "https://cq094tylu1.execute-api.us-west-2.amazonaws.com/Prod/api
-    // If you enable API keys on API Gateway later, add it here:
-    const API_KEY = ""; // e.g. "abcd123..."
-    // ====================
+    const API_BASE = "https://cq094tylu1.execute-api.us-west-2.amazonaws.com/Prod/api"; // from your stack output
+    const TICKERS_URL = "./tickers.json"; // place tickers.json alongside this file in /docs
 
-    const $ = s => document.querySelector(s);
-    const $$ = s => Array.from(document.querySelectorAll(s));
-    const el = {
-      t: $("#ticker"), d: $("#days"), run: $("#runBtn"), share: $("#shareBtn"),
-      warn: $("#warn"), err: $("#err"), load: $("#loader"),
-      res: $("#results"), title: $("#storyTitle"), tldr: $("#tldr"), narrative: $("#narrative"),
-      tags: $("#tags"), facts: $("#facts"), pos: $("#positives"), risks: $("#risks"),
-      disc: $("#disclaimer"), apiLink: $("#apiLink"),
+    // ====== UTIL ======
+    const $ = (sel) => document.querySelector(sel);
+    const el = (tag, attrs={}, text="") => {
+      const n = document.createElement(tag);
+      Object.entries(attrs).forEach(([k,v]) => n.setAttribute(k,v));
+      if (text) n.textContent = text;
+      return n;
     };
 
-    document.getElementById("yr").textContent = new Date().getFullYear();
+    // ====== Autocomplete ======
+    const txt = $("#ticker");
+    const sug = $("#suggestions");
+    let TICKERS = [];
+    fetch(TICKERS_URL)
+      .then(r => r.json())
+      .then(list => { TICKERS = list; })
+      .catch(() => { /* optional: silently ignore */ });
 
-    // Preset chips
-    $$(".chip").forEach(c => c.addEventListener("click", () => {
-      el.t.value = c.dataset.t;
-      go();
-    }));
+    function showSuggestions(q){
+      if (!q || q.length < 1 || !TICKERS.length){ sug.style.display = "none"; return; }
+      const needle = q.toUpperCase();
+      const out = TICKERS.filter(t =>
+        t.symbol.startsWith(needle) || (t.name && t.name.toUpperCase().includes(needle))
+      ).slice(0, 12);
 
-    // Buttons
-    el.run.addEventListener("click", go);
-    el.share.addEventListener("click", () => {
-      const u = new URL(location.href);
-      u.searchParams.set("ticker", el.t.value.trim().toUpperCase());
-      u.searchParams.set("days", el.d.value);
-      navigator.clipboard.writeText(u.toString()).then(() => toast("Link copied"));
+      if (!out.length){ sug.style.display = "none"; return; }
+      sug.innerHTML = "";
+      out.forEach(tk => {
+        const row = el("div");
+        const left = el("span", {class:"ticker"}, tk.symbol);
+        const right = el("span", {class:"name"}, tk.name || "");
+        row.append(left, right);
+        row.addEventListener("click", () => {
+          txt.value = tk.symbol;
+          sug.style.display = "none";
+        });
+        sug.appendChild(row);
+      });
+      sug.style.display = "block";
+    }
+    txt.addEventListener("input", e => showSuggestions(e.target.value));
+    document.addEventListener("click", (e) => {
+      if (!sug.contains(e.target) && e.target !== txt) sug.style.display = "none";
     });
 
-    // Enter key on ticker field
-    el.t.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+    // ====== Fetch + Render ======
+    const loading = $("#loading");
+    const windowSel = $("#window");
+    const btnFetch = $("#btnFetch");
+    const btnClear = $("#btnClear");
 
-    // On load, hydrate from URL
-    (function initFromQuery(){
-      const q = new URLSearchParams(location.search);
-      const t = (q.get("ticker") || el.t.value || "NVDA").toUpperCase();
-      const days = q.get("days") || el.d.value || "180";
-      el.t.value = t; el.d.value = days;
-      go(false);
-    })();
+    const storyTitle = $("#storyTitle");
+    const storyMeta = $("#storyMeta");
+    const storyTLDR = $("#storyTLDR");
+    const storyText = $("#storyText");
+    const positives = $("#positives");
+    const risks = $("#risks");
+    const tags = $("#tags");
+    const factsWrap = $("#facts");
 
-    async function go(showToast = true){
-      clearAlerts();
-      const ticker = el.t.value.trim().toUpperCase();
-      const days = parseInt(el.d.value, 10) || 180;
-      if(!ticker){ alertBox(el.err, "Please enter a ticker."); return; }
+    function fmtPct(x){
+      if (x === null || x === undefined || isNaN(x)) return "—";
+      return (x > 0 ? "+" : "") + x.toFixed(2) + "%";
+    }
+    function kv(label, value){
+      const k = el("div", {class:"kv"});
+      k.append(el("b", {}, label), el("div", {}, value));
+      return k;
+    }
+    function badge(text){ return el("span", {class:"badge"}, text); }
 
-      const url = `${API_BASE}/story/${encodeURIComponent(ticker)}?window_days=${days}`;
-      el.apiLink.href = url;
+    async function fetchStory(){
+      const ticker = txt.value.trim().toUpperCase();
+      const days = parseInt(windowSel.value, 10);
+      if (!ticker){ alert("Enter a ticker (e.g., NVDA)"); txt.focus(); return; }
 
-      toggleLoading(true);
+      loading.style.display = "flex";
+      storyTitle.textContent = "Story";
+      storyMeta.textContent = "—";
+      storyTLDR.textContent = "—";
+      storyText.textContent = "—";
+      positives.innerHTML = risks.innerHTML = tags.innerHTML = "";
+      factsWrap.innerHTML = "";
+
       try{
-        const res = await fetch(url, {
-          method: "GET",
-          headers: Object.assign(
-            {"Accept":"application/json"},
-            API_KEY ? {"x-api-key": API_KEY} : {}
-          )
-        });
-        if(!res.ok){
-          const text = await res.text();
-          throw new Error(`API ${res.status}: ${text || res.statusText}`);
+        const url = `${API_BASE}/story/${encodeURIComponent(ticker)}?window_days=${days}`;
+        const res = await fetch(url, { method: "GET" });
+        if (!res.ok){
+          const msg = await res.text();
+          throw new Error(msg || `HTTP ${res.status}`);
         }
         const data = await res.json();
-        render(data);
-        if (showToast) toast("Story generated");
+
+        // Render Story
+        storyTitle.textContent = data.story?.title || `${ticker} story`;
+        storyMeta.textContent = `${data.ticker} · window ${data.window_days}d`;
+        storyTLDR.textContent = data.story?.tldr || "—";
+        storyText.textContent = data.story?.narrative || "—";
+
+        (data.story?.positives || []).forEach(p => positives.appendChild(badge(p)));
+        (data.story?.risks || []).forEach(r => risks.appendChild(badge(r)));
+        (data.story?.suggested_tags || []).forEach(t => tags.appendChild(badge(t)));
+
+        // Render Facts (curated order for traders)
+        const f = data.facts || {};
+        const items = [
+          ["Price", f.current_price ? `$${(+f.current_price).toFixed(2)}` : "—"],
+          ["5d / 1m / 3m", `${fmtPct(f.chg_5d)}  ·  ${fmtPct(f.chg_1m)}  ·  ${fmtPct(f.chg_3m)}`],
+          ["6m / 1y", `${fmtPct(f.chg_6m)}  ·  ${fmtPct(f.chg_1y)}`],
+          ["Vol (30d, ann.)", f.vol_30 ? fmtPct(f.vol_30) : "—"],
+          ["Max DD (YTD)", f.max_dd_ytd ? fmtPct(f.max_dd_ytd) : "—"],
+          ["RSI(14) / ATR(14)", `${f.rsi14?.toFixed?.(2) ?? "—"}  ·  ${f.atr14?.toFixed?.(2) ?? "—"}`],
+          ["MAs", `${f.dma20?.toFixed?.(2) ?? "—"} / ${f.dma50?.toFixed?.(2) ?? "—"} / ${f.dma200?.toFixed?.(2) ?? "—"}`],
+          ["Dist to 20/50/200", `${fmtPct(f.dist20_pct)} / ${fmtPct(f.dist50_pct)} / ${fmtPct(f.dist200_pct)}`],
+          ["Slope20 (ann.)", f.slope20_pct_annual ? fmtPct(f.slope20_pct_annual) : "—"],
+          ["Rel 3m vs SPY", f.rel_3m_vs_spy_pct ? fmtPct(f.rel_3m_vs_spy_pct) : "—"],
+          ["Beta vs SPY", f.beta_vs_spy?.toFixed?.(2) ?? "—"],
+          ["Vol ratio (1d/20d)", f.vol_ratio?.toFixed?.(2) ?? "—"],
+          ["SR 20d Hi/Lo", (f.sr_high_20d && f.sr_low_20d) ? `$${f.sr_high_20d.toFixed(2)} / $${f.sr_low_20d.toFixed(2)}` : "—"],
+          ["Technicals", f.technicals || "—"],
+        ];
+        items.forEach(([k,v]) => factsWrap.appendChild(kv(k,v)));
+
+        // Remember last
+        localStorage.setItem("lastTicker", ticker);
+        localStorage.setItem("lastWindow", String(days));
       }catch(err){
-        alertBox(el.err, err.message || "Request failed");
-        el.res.hidden = true;
+        storyTitle.textContent = "Error";
+        storyText.textContent = (""+err.message || "Failed to fetch story");
       }finally{
-        toggleLoading(false);
+        loading.style.display = "none";
       }
     }
 
-    function render(data){
-      // Data contract:
-      // { ticker, window_days, facts: {...}, story: {title,tldr,narrative,positives[],risks[],suggested_tags[]}, disclaimer }
-      const { ticker, window_days, facts = {}, story = {}, disclaimer="" } = data || {};
-      el.res.hidden = false;
+    btnFetch.addEventListener("click", fetchStory);
+    btnClear.addEventListener("click", () => {
+      txt.value = ""; sug.style.display = "none";
+      storyTitle.textContent = "Story";
+      storyMeta.textContent = storyTLDR.textContent = storyText.textContent = "—";
+      positives.innerHTML = risks.innerHTML = tags.innerHTML = "";
+      factsWrap.innerHTML = "";
+    });
 
-      // Title & tags
-      el.title.textContent = story.title || `${ticker} story`;
-      el.tags.innerHTML = "";
-      (story.suggested_tags || []).forEach(tag => {
-        const s = document.createElement("span");
-        s.className = "pill"; s.textContent = `#${tag}`;
-        el.tags.appendChild(s);
-      });
+    // Enter key
+    txt.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") fetchStory();
+    });
 
-      // TL;DR + narrative
-      el.tldr.textContent = story.tldr || "";
-      el.narrative.textContent = story.narrative || "";
-
-      // Facts grid
-      const fx = [
-        ["Current Price", nfmt(facts.current_price, "$")],
-        ["5d Change", pfmt(facts.chg_5d)],
-        ["1m Change", pfmt(facts.chg_1m)],
-        ["3m Change", pfmt(facts.chg_3m)],
-        ["1y Change", pfmt(facts.chg_1y)],
-        ["Vol (30d σ)", pfmt(facts.vol_30)],
-        ["MaxDD YTD", pfmt(facts.max_dd_ytd)],
-        ["Technicals", facts.technicals || "—"],
-        ["Events", facts.events || "—"],
-        ["Window", `${window_days}d`]
-      ];
-      el.facts.innerHTML = fx.map(([k,v]) => `
-        <div class="fact">
-          <div class="k">${k}</div>
-          <div class="v mono">${v}</div>
-        </div>
-      `).join("");
-
-      // Positives / Risks
-      listTo(el.pos, story.positives);
-      listTo(el.risks, story.risks);
-
-      // Disclaimer
-      el.disc.textContent = disclaimer || "Educational use only. Not investment advice.";
-
-      // Fallback warning
-      const isFallback = (story.suggested_tags || []).includes("fallback");
-      if(isFallback){
-        alertBox(el.warn, "Showing fallback (model quota/rate limit hit). Data-only summary displayed.");
-      } else {
-        el.warn.style.display = "none";
-      }
-    }
-
-    function listTo(node, arr){
-      node.innerHTML = "";
-      (arr || []).forEach(x => {
-        const li = document.createElement("li");
-        li.textContent = x;
-        node.appendChild(li);
-      });
-      if(!arr || arr.length === 0){
-        const li = document.createElement("li");
-        li.className = "muted"; li.textContent = "—";
-        node.appendChild(li);
-      }
-    }
-
-    function nfmt(x, prefix=""){
-      if(x == null || Number.isNaN(+x)) return "—";
-      return prefix + Number(x).toLocaleString(undefined, {maximumFractionDigits:2});
-    }
-    function pfmt(x){
-      if(x == null || Number.isNaN(+x)) return "—";
-      const v = Number(x);
-      const color = v > 0 ? "var(--good)" : (v < 0 ? "var(--danger)" : "var(--muted)");
-      return `<span style="color:${color}">${v.toFixed(2)}%</span>`;
-    }
-
-    function toggleLoading(on){
-      el.load.style.display = on ? "flex" : "none";
-      el.run.disabled = on; el.share.disabled = on;
-    }
-    function alertBox(node, msg){
-      node.textContent = msg; node.style.display = "block";
-    }
-    function clearAlerts(){
-      el.warn.style.display = "none";
-      el.err.style.display = "none";
-    }
-    function toast(msg){
-      // tiny inline toast
-      const t = document.createElement("div");
-      t.textContent = msg;
-      t.style.position="fixed"; t.style.bottom="18px"; t.style.left="50%"; t.style.transform="translateX(-50%)";
-      t.style.background="rgba(255,255,255,.08)"; t.style.border="1px solid rgba(255,255,255,.18)";
-      t.style.padding="10px 14px"; t.style.borderRadius="999px"; t.style.boxShadow="var(--shadow)";
-      t.style.backdropFilter="blur(6px)"; t.style.zIndex=9999;
-      document.body.appendChild(t);
-      setTimeout(()=>{ t.style.opacity="0"; t.style.transition="opacity .4s"; }, 1400);
-      setTimeout(()=> t.remove(), 1900);
-    }
+    // Restore last state
+    (function init(){
+      $("#year").textContent = new Date().getFullYear();
+      const lt = localStorage.getItem("lastTicker");
+      const lw = localStorage.getItem("lastWindow");
+      if (lt) txt.value = lt;
+      if (lw) windowSel.value = lw;
+    })();
   </script>
 </body>
 </html>
-<!-- redeploy: 2025-08-10T21:32:33.3085980-07:00 -->
