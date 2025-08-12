@@ -14,6 +14,7 @@
       --brand:#74c0fc; --accent:#a78bfa; --ring:0 0 0 2px rgba(167,139,250,.35);
       --shadow:0 10px 30px rgba(0,0,0,.35); --glass:rgba(255,255,255,.06);
       --glass-border:1px solid rgba(255,255,255,.08); --radius:16px;
+      --pos:#16a34a; --neg:#ef4444; --chip:#111520;
     }
     *{box-sizing:border-box} html,body{height:100%}
     body{
@@ -51,21 +52,36 @@
       font-weight:600; cursor:pointer; transition:.15s;}
     button.primary{background:linear-gradient(180deg, #2563eb, #1d4ed8); border:none}
     button:hover{transform:translateY(-1px)}
-    .suggestions{position:absolute; top:70px; left:0; right:0; background:#0c0f14; border:1px solid #1b2230;
-      border-radius:12px; z-index:10; max-height:280px; overflow:auto; box-shadow:var(--shadow)}
+    .suggestions{
+      position:absolute; top:70px; left:0; right:0; background:#0c0f14; border:1px solid #1b2230;
+      border-radius:12px; z-index:9999; max-height:280px; overflow:auto; box-shadow:var(--shadow)
+    }
     .suggestions div{padding:10px 12px; cursor:pointer; display:flex; justify-content:space-between; gap:8px;
       border-bottom:1px solid rgba(255,255,255,.04)}
     .suggestions div:last-child{border-bottom:0}
     .suggestions div:hover{background:#0f1520}
     .ticker{font-weight:700}
     .name{color:var(--muted);font-size:13px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+
+    /* Top price strip */
+    .price-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0}
+    .price-left{display:flex;align-items:baseline;gap:12px}
+    .current-price{font-size:40px;font-weight:800;letter-spacing:.2px}
+    .price-chip{
+      display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;
+      background:var(--chip); border:1px solid #1b2230; font-weight:600; font-size:14px;
+    }
+    .pos{color:var(--pos)} .neg{color:var(--neg)}
+    .chip-pos{background:rgba(22,163,74,.12); border-color:rgba(22,163,74,.25)}
+    .chip-neg{background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.25)}
+
     .grid{display:grid;grid-template-columns:1fr .9fr; gap:16px; margin-top:16px}
     @media (max-width:1000px){ .grid{grid-template-columns:1fr} }
     .card{padding:16px}
     .card h3{margin:0 0 10px 0; font-size:16px}
     .meta{font-size:13px;color:var(--muted);margin-bottom:8px}
     .kvs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-    .kv{padding:10px 12px; background:#0c0f14; border:1px solid #1b2230; border-radius:12px; font-size:13px}
+    .kv{padding:10px 12px; background:#0c0f14; border:1px solid #1b2230; border-radius:12px; font-size:13px; position:relative}
     .kv b{display:block;color:#cbd5e1;font-size:12px;margin-bottom:4px;font-weight:600}
     .row{display:flex;flex-wrap:wrap;gap:8px}
     .badge{display:inline-block; padding:4px 8px; border-radius:999px; background:#0c0f14; border:1px solid #1b2230; font-size:12px; color:#cbd5e1}
@@ -74,6 +90,13 @@
     @keyframes spin{to{transform:rotate(360deg)}}
     #chart{height:420px; width:100%; margin-top:16px}
     footer{margin:26px 0 60px;color:var(--muted);font-size:12px;text-align:center}
+
+    /* Tooltip */
+    .tooltip{
+      position:fixed; pointer-events:none; transform:translate(-50%, calc(-100% - 10px));
+      background:#0c0f14; color:#e8ecf1; border:1px solid #1b2230; padding:8px 10px; border-radius:8px;
+      font-size:12px; max-width:280px; z-index:10000; box-shadow:var(--shadow); display:none;
+    }
   </style>
 </head>
 <body>
@@ -111,6 +134,17 @@
           <button id="btnClear">Clear</button>
         </div>
       </div>
+
+      <!-- Prominent price strip -->
+      <div class="price-strip" id="priceStrip" style="display:none; padding: 0 16px 16px;">
+        <div class="price-left">
+          <div id="priceSymbol" class="sub" style="font-weight:700; font-size:14px;"></div>
+          <div id="currentPrice" class="current-price">$—</div>
+          <div id="priceChip" class="price-chip">—</div>
+        </div>
+        <div class="sub" id="priceMeta">—</div>
+      </div>
+
       <div id="loading" class="loading"><div class="spinner"></div>Fetching live data…</div>
     </section>
 
@@ -146,9 +180,11 @@
     <footer>© <span id="year"></span> Anirudh Kowshik — MarketPulse</footer>
   </div>
 
+  <div id="tooltip" class="tooltip"></div>
+
   <script>
     // ====== CONFIG (robust paths for GH Pages) ======
-    const REPO_SEGMENT = "/ai-stock-storyteller/"; // keep repo path for Pages
+    const REPO_SEGMENT = "/ai-stock-storyteller/"; // repo path for Pages
     const isGhPages = location.hostname.endsWith(".github.io");
     const BASE_PATH = isGhPages
       ? (location.pathname.startsWith(REPO_SEGMENT) ? REPO_SEGMENT : location.pathname.replace(/[^/]+$/, ""))
@@ -165,9 +201,11 @@
       if (text) n.textContent = text;
       return n;
     };
+    const signClass = (v) => (v>0 ? "pos" : v<0 ? "neg" : "");
     function fmtPct(x){
       if (x === null || x === undefined || isNaN(x)) return "—";
-      return (x > 0 ? "+" : "") + x.toFixed(2) + "%";
+      const s = (x > 0 ? "+" : "") + x.toFixed(2) + "%";
+      return s;
     }
     function sma(arr, period){
       const out = new Array(arr.length).fill(null);
@@ -181,7 +219,7 @@
       return out;
     }
 
-    // ====== Autocomplete ======
+    // ====== Autocomplete (more robust + no-cache) ======
     const txt = $("#ticker");
     const sug = $("#suggestions");
     let TICKERS = [];
@@ -194,7 +232,7 @@
     ];
     (async () => {
       try {
-        const res = await fetch(TICKERS_URL, { cache: "no-store" });
+        const res = await fetch(`${TICKERS_URL}?_=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
         if (!text || !text.trim().length) throw new Error("Empty tickers.json");
@@ -217,12 +255,13 @@
         const left = el("span", {class:"ticker"}, tk.symbol);
         const right = el("span", {class:"name"}, tk.name || "");
         row.append(left, right);
-        row.addEventListener("click", () => { txt.value = tk.symbol; sug.style.display = "none"; });
+        row.addEventListener("click", () => { txt.value = tk.symbol; sug.style.display = "none"; txt.focus(); });
         sug.appendChild(row);
       });
       sug.style.display = "block";
     }
     txt.addEventListener("input", e => showSuggestions(e.target.value));
+    txt.addEventListener("focus", e => { if (txt.value) showSuggestions(txt.value); });
     document.addEventListener("click", (e) => {
       if (!sug.contains(e.target) && e.target !== txt) sug.style.display = "none";
     });
@@ -240,10 +279,45 @@
     const risks = $("#risks");
     const tags = $("#tags");
     const factsWrap = $("#facts");
+    const priceStrip = $("#priceStrip");
+    const priceSymbol = $("#priceSymbol");
+    const currentPrice = $("#currentPrice");
+    const priceChip = $("#priceChip");
+    const priceMeta = $("#priceMeta");
+    $("#year").textContent = new Date().getFullYear();
 
+    // Tooltips for Key Facts
+    const tooltip = $("#tooltip");
+    const FACT_HELP = {
+      "Price": "Latest close from the selected window.",
+      "5d / 1m / 3m": "Percentage change over the last 5 trading days, 1 month (~21d), and 3 months (~63d).",
+      "6m / 1y": "Percentage change over 6 months (~126d) and 1 year (~252d).",
+      "Vol (30d, ann.)": "Annualized volatility estimated from the last 30 daily returns.",
+      "Max DD (YTD)": "Largest peak-to-trough drawdown since Jan 1 of this year.",
+      "RSI(14) / ATR(14)": "RSI shows overbought/oversold; ATR is average true range (volatility).",
+      "MAs": "Simple moving averages for 20/50/200 days.",
+      "Dist to 20/50/200": "Price’s percent distance from each moving average.",
+      "Slope20 (ann.)": "Annualized slope of last 20 days’ prices (rough momentum proxy).",
+      "Rel 3m vs SPY": "Out/under-performance vs S&P 500 (SPY) over ~3 months.",
+      "Beta vs SPY": "Sensitivity of the stock’s returns to SPY (market beta).",
+      "Vol ratio (1d/20d)": "Today’s volume vs 20-day average volume.",
+      "SR 20d Hi/Lo": "Highest and lowest price in the last 20 trading days.",
+      "Technicals": "Detected trend cues (e.g., above 20DMA, golden cross)."
+    };
+    function attachTooltip(node, text){
+      node.addEventListener("mousemove", (e)=>{
+        tooltip.textContent = text;
+        tooltip.style.left = e.clientX + "px";
+        tooltip.style.top = e.clientY + "px";
+        tooltip.style.display = "block";
+      });
+      node.addEventListener("mouseleave", ()=>{ tooltip.style.display = "none"; });
+    }
     function kv(label, value){
-      const k = el("div", {class:"kv"});
+      const k = el("div", {class:"kv", "data-k":label});
       k.append(el("b", {}, label), el("div", {}, value));
+      const help = FACT_HELP[label];
+      if (help) attachTooltip(k, help);
       return k;
     }
 
@@ -288,11 +362,17 @@
       if (!ticker){ alert("Enter a ticker (e.g., NVDA)"); txt.focus(); return; }
 
       loading.style.display = "flex";
-      storyTitle.textContent = "Story";
-      storyMeta.textContent = storyTLDR.textContent = storyText.textContent = "—";
-      positives.innerHTML = risks.innerHTML = tags.innerHTML = "";
-      factsWrap.innerHTML = "";
       $("#chart").innerHTML = "";
+      priceStrip.style.display = "none";
+
+      // reset story/facts
+      const resetBlocks = ()=>{
+        storyTitle.textContent = "Story";
+        storyMeta.textContent = storyTLDR.textContent = storyText.textContent = "—";
+        positives.innerHTML = risks.innerHTML = tags.innerHTML = "";
+        factsWrap.innerHTML = "";
+      };
+      resetBlocks();
 
       try{
         const url = `${API_BASE}/story/${encodeURIComponent(ticker)}?window_days=${days}`;
@@ -304,8 +384,23 @@
         const data = await res.json();
 
         // --- Chart ---
-        if (Array.isArray(data.chart) && data.chart.length > 0){
+        if (Array.isArray(data.chart) && data.chart.length > 1){
           drawChart(data.chart);
+
+          // Prominent price + 1d change from last two closes
+          const last = data.chart[data.chart.length-1];
+          const prev = data.chart[data.chart.length-2];
+          const lastClose = last.c, prevClose = prev.c;
+          const chg = prevClose ? ((lastClose/prevClose)-1)*100 : 0;
+          const cls = signClass(chg);
+          priceSymbol.textContent = data.ticker;
+          currentPrice.textContent = `$${(+lastClose).toFixed(2)}`;
+          priceChip.textContent = (chg>=0?"+":"") + chg.toFixed(2) + "%";
+          priceChip.className = "price-chip " + (chg>0 ? "chip-pos" : chg<0 ? "chip-neg" : "");
+          priceMeta.textContent = `Window: ${data.window_days}d · ${new Date(last.t).toLocaleDateString()}`;
+          priceStrip.style.display = "flex";
+          // color the price itself lightly if desired
+          currentPrice.className = "current-price " + cls;
         } else {
           $("#chart").innerHTML = '<div style="padding:16px;color:#9aa4af">No chart data available.</div>';
         }
@@ -319,25 +414,34 @@
         (data.story?.risks || []).forEach(r => risks.appendChild(el("span",{class:"badge"},r)));
         (data.story?.suggested_tags || []).forEach(t => tags.appendChild(el("span",{class:"badge"},t)));
 
-        // --- Facts ---
+        // --- Facts (with green/red for % values) ---
         const f = data.facts || {};
+        const pctClasses = (val) => {
+          const s = el("span", {class: signClass(val)}, (val==null? "—" : ((val>0?"+":"")+val.toFixed(2)+"%")));
+          return s.outerHTML;
+        };
         const items = [
           ["Price", f.current_price ? `$${(+f.current_price).toFixed(2)}` : "—"],
-          ["5d / 1m / 3m", `${fmtPct(f.chg_5d)}  ·  ${fmtPct(f.chg_1m)}  ·  ${fmtPct(f.chg_3m)}`],
-          ["6m / 1y", `${fmtPct(f.chg_6m)}  ·  ${fmtPct(f.chg_1y)}`],
-          ["Vol (30d, ann.)", f.vol_30 ? fmtPct(f.vol_30) : "—"],
-          ["Max DD (YTD)", f.max_dd_ytd ? fmtPct(f.max_dd_ytd) : "—"],
-          ["RSI(14) / ATR(14)", `${f.rsi14?.toFixed?.(2) ?? "—"}  ·  ${f.atr14?.toFixed?.(2) ?? "—"}`],
+          ["5d / 1m / 3m", `${pctClasses(f.chg_5d)} · ${pctClasses(f.chg_1m)} · ${pctClasses(f.chg_3m)}`],
+          ["6m / 1y", `${pctClasses(f.chg_6m)} · ${pctClasses(f.chg_1y)}`],
+          ["Vol (30d, ann.)", f.vol_30!=null ? ((f.vol_30>0?"+":"")+f.vol_30.toFixed(2)+"%") : "—"],
+          ["Max DD (YTD)", f.max_dd_ytd!=null ? ((f.max_dd_ytd>0?"+":"")+f.max_dd_ytd.toFixed(2)+"%") : "—"],
+          ["RSI(14) / ATR(14)", `${f.rsi14?.toFixed?.(2) ?? "—"} · ${f.atr14?.toFixed?.(2) ?? "—"}`],
           ["MAs", `${f.dma20?.toFixed?.(2) ?? "—"} / ${f.dma50?.toFixed?.(2) ?? "—"} / ${f.dma200?.toFixed?.(2) ?? "—"}`],
-          ["Dist to 20/50/200", `${fmtPct(f.dist20_pct)} / ${fmtPct(f.dist50_pct)} / ${fmtPct(f.dist200_pct)}`],
-          ["Slope20 (ann.)", f.slope20_pct_annual ? fmtPct(f.slope20_pct_annual) : "—"],
-          ["Rel 3m vs SPY", f.rel_3m_vs_spy_pct ? fmtPct(f.rel_3m_vs_spy_pct) : "—"],
+          ["Dist to 20/50/200", `${pctClasses(f.dist20_pct)} / ${pctClasses(f.dist50_pct)} / ${pctClasses(f.dist200_pct)}`],
+          ["Slope20 (ann.)", f.slope20_pct_annual!=null ? ((f.slope20_pct_annual>0?"+":"")+f.slope20_pct_annual.toFixed(2)+"%") : "—"],
+          ["Rel 3m vs SPY", f.rel_3m_vs_spy_pct!=null ? ((f.rel_3m_vs_spy_pct>0?"+":"")+f.rel_3m_vs_spy_pct.toFixed(2)+"%") : "—"],
           ["Beta vs SPY", f.beta_vs_spy?.toFixed?.(2) ?? "—"],
           ["Vol ratio (1d/20d)", f.vol_ratio?.toFixed?.(2) ?? "—"],
           ["SR 20d Hi/Lo", (f.sr_high_20d && f.sr_low_20d) ? `$${f.sr_high_20d.toFixed(2)} / $${f.sr_low_20d.toFixed(2)}` : "—"],
           ["Technicals", f.technicals || "—"],
         ];
-        items.forEach(([k,v]) => factsWrap.appendChild(kv(k,v)));
+        items.forEach(([k,v]) => {
+          // v may contain HTML (colored spans); preserve it
+          const node = kv(k, "");
+          node.querySelector("div:last-child").innerHTML = v;
+          factsWrap.appendChild(node);
+        });
 
         // Persist
         localStorage.setItem("lastTicker", ticker);
@@ -350,14 +454,16 @@
       }
     }
 
-    $("#year").textContent = new Date().getFullYear();
+    const btnFetch = $("#btnFetch");
+    const btnClear = $("#btnClear");
     btnFetch.addEventListener("click", fetchStory);
     btnClear.addEventListener("click", () => {
       txt.value = ""; sug.style.display = "none";
+      $("#chart").innerHTML = ""; priceStrip.style.display = "none";
       storyTitle.textContent = "Story";
       storyMeta.textContent = storyTLDR.textContent = storyText.textContent = "—";
       positives.innerHTML = risks.innerHTML = tags.innerHTML = "";
-      factsWrap.innerHTML = ""; $("#chart").innerHTML = "";
+      factsWrap.innerHTML = "";
     });
     txt.addEventListener("keydown", (e) => { if (e.key === "Enter") fetchStory(); });
 
