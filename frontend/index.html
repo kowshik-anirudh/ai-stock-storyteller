@@ -1,309 +1,358 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>AI Stock Storyteller</title>
-<meta name="description" content="Minimal, elegant stock stories for traders from real data + AI."/>
-<link rel="icon" href="data:,">
-<style>
-  :root{
-    --bg:#0b0d10; --card:#101316; --ink:#e9eff6; --muted:#9fb2c6;
-    --line:rgba(255,255,255,.08); --ring:rgba(94,234,212,.22);
-    --accent:#5eead4; --good:#22c55e; --bad:#ef4444;
-    --radius:16px; --shadow:0 12px 30px rgba(0,0,0,.35);
-  }
-  *{box-sizing:border-box} html,body{height:100%}
-  body{margin:0;background:linear-gradient(180deg,#0a0c0f,#0b0d10 40%);color:var(--ink);
-       font:16px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;}
-  .wrap{max-width:960px;margin:0 auto;padding:28px 18px 64px}
-  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
-  .brand{display:flex;align-items:center;gap:12px}
-  .dot{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--accent),#6aa6ff);
-       filter:drop-shadow(0 6px 18px rgba(94,234,212,.3))}
-  h1{font-size:18px;margin:0} .sub{color:var(--muted);font-size:12px;margin-top:2px}
-  .badge{color:var(--muted);font-size:12px;border:1px solid var(--line);padding:4px 10px;border-radius:999px}
-  .card{background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.01));
-        border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); backdrop-filter:blur(4px)}
-  .panel{padding:14px; display:flex; flex-wrap:wrap; gap:10px; align-items:center}
-  label{font-size:12px; color:var(--muted)}
-  .field{display:flex; flex-direction:column; gap:6px; min-width:190px; flex:1 1 230px}
-  input,select{padding:12px 14px; border-radius:12px; background:rgba(255,255,255,.03);
-               border:1px solid rgba(255,255,255,.1); color:var(--ink); outline:none}
-  input:focus,select:focus{box-shadow:0 0 0 6px var(--ring); border-color:rgba(94,234,212,.35)}
-  .actions{margin-left:auto; display:flex; gap:10px}
-  button{appearance:none;border:0;border-radius:12px;padding:12px 16px;font-weight:600;cursor:pointer;
-         background:linear-gradient(180deg,var(--accent),#77d0ff); color:#081014; box-shadow:0 12px 20px rgba(94,234,212,.25)}
-  .ghost{background:transparent; color:var(--ink); border:1px solid rgba(255,255,255,.16); box-shadow:none}
-  .presets{display:flex; gap:8px; flex-wrap:wrap; padding:10px 14px; border-top:1px solid var(--line)}
-  .chip{padding:8px 12px; border-radius:999px; background:rgba(255,255,255,.04); border:1px solid var(--line); color:var(--muted); cursor:pointer}
-  .grid{display:grid; gap:16px; grid-template-columns:1fr; margin-top:16px}
-  @media(min-width:900px){ .grid{ grid-template-columns:1.1fr .9fr } }
-  .section{padding:16px}
-  .facts{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
-  .fact{border:1px solid var(--line); border-radius:12px; padding:12px; background:rgba(255,255,255,.03)}
-  .k{font-size:12px; color:var(--muted)} .v{font-weight:700}
-  .pill{display:inline-flex; gap:8px; align-items:center; padding:6px 10px; border-radius:999px;
-        border:1px solid var(--line); background:rgba(255,255,255,.04); font-size:12px}
-  .muted{color:var(--muted)} .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
-  .alert{display:none;margin-top:12px; padding:12px 14px; border-radius:12px; border:1px solid var(--line)}
-  .warn{background:rgba(245,158,11,.08); border-color:rgba(245,158,11,.35)}
-  .err{background:rgba(239,68,68,.08); border-color:rgba(239,68,68,.35)}
-  .loader{display:none; align-items:center; gap:10px; padding:14px}
-  .spinner{width:18px; height:18px; border:3px solid rgba(255,255,255,.15); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  footer{margin-top:28px; display:flex; justify-content:space-between; align-items:center; color:var(--muted); font-size:12px}
-  .links{display:flex; gap:10px; flex-wrap:wrap}
-  .link{color:var(--muted); text-decoration:none; border-bottom:1px dashed rgba(255,255,255,.2)}
-  .sugg{position:relative}
-  .dropdown{position:absolute; top:64px; left:0; right:0; background:var(--card); border:1px solid var(--line);
-            border-radius:12px; max-height:260px; overflow:auto; box-shadow:var(--shadow); display:none; z-index:10}
-  .row{display:flex; justify-content:space-between; gap:10px; padding:8px 12px; cursor:pointer}
-  .row:hover{background:rgba(255,255,255,.04)}
-  mark{background:transparent; color:var(--accent); font-weight:700}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Stock Storyteller</title>
+  <meta name="description" content="AI-generated trader briefs + market facts for any US ticker." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0b0d11;
+      --panel:#0f1218;
+      --muted:#9aa4af;
+      --text:#e8ecf1;
+      --brand:#74c0fc;
+      --accent:#a78bfa;
+      --ok:#22c55e;
+      --warn:#f59e0b;
+      --danger:#ef4444;
+      --ring: 0 0 0 2px rgba(167,139,250,.35);
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --glass: rgba(255,255,255,.06);
+      --glass-border: 1px solid rgba(255,255,255,.08);
+      --radius: 16px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background: radial-gradient(1200px 800px at 10% -10%, rgba(116,192,252,.08), transparent 40%),
+                  radial-gradient(900px 700px at 110% 10%, rgba(167,139,250,.10), transparent 45%),
+                  var(--bg);
+      color:var(--text);
+      font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      letter-spacing:.1px;
+    }
+    a{color:var(--brand); text-decoration:none}
+    a:hover{text-decoration:underline}
+    .wrap{max-width:980px;margin:32px auto;padding:0 16px}
+    header{
+      display:flex;align-items:center;justify-content:space-between;margin-bottom:20px
+    }
+    .brand{
+      display:flex;gap:12px;align-items:center;
+    }
+    .logo{
+      width:44px;height:44px;border-radius:12px;
+      background:
+        radial-gradient(180px 80px at 80% -40%, rgba(167,139,250,.6), transparent 50%),
+        radial-gradient(160px 120px at -20% 120%, rgba(116,192,252,.6), transparent 55%),
+        linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.04));
+      backdrop-filter: blur(6px);
+      border:var(--glass-border);
+      box-shadow:var(--shadow);
+    }
+    .title{font-weight:700;font-size:20px}
+    .sub{color:var(--muted);font-size:13px;margin-top:2px}
+
+    .panel{
+      background:var(--glass); border:var(--glass-border);
+      border-radius:var(--radius); box-shadow:var(--shadow);
+    }
+    .search{
+      padding:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center
+    }
+    .field{flex:1;min-width:240px;position:relative}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input[type="text"], input[type="number"], select{
+      width:100%; padding:12px 14px; background:#0c0f14; color:var(--text);
+      border:1px solid #1b2230; border-radius:12px; outline:none; font-size:14px;
+      transition: box-shadow .15s, border-color .15s;
+    }
+    input[type="text"]:focus, input[type="number"]:focus, select:focus{
+      border-color:#3b82f6; box-shadow: var(--ring);
+    }
+    .actions{display:flex;gap:12px;align-items:flex-end}
+    button{
+      padding:12px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.12);
+      background:linear-gradient(180deg, rgba(55,65,81,.6), rgba(30,41,59,.6));
+      color:var(--text); font-weight:600; cursor:pointer; transition:.15s;
+    }
+    button:hover{transform:translateY(-1px)}
+    button.primary{
+      background:linear-gradient(180deg, #2563eb, #1d4ed8); border:none;
+    }
+
+    .suggestions{
+      position:absolute; top:70px; left:0; right:0;
+      background:#0c0f14; border:1px solid #1b2230; border-radius:12px; z-index:10;
+      max-height:280px; overflow:auto; box-shadow:var(--shadow);
+    }
+    .suggestions div{
+      padding:10px 12px; cursor:pointer; display:flex; justify-content:space-between; gap:8px;
+      border-bottom:1px solid rgba(255,255,255,.04);
+    }
+    .suggestions div:last-child{border-bottom:0}
+    .suggestions div:hover{background:#0f1520}
+    .ticker{font-weight:700}
+    .name{color:var(--muted);font-size:13px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+
+    .grid{display:grid;grid-template-columns:1.2fr .8fr; gap:16px; margin-top:16px}
+    @media (max-width:900px){ .grid{grid-template-columns:1fr} }
+
+    .card{padding:16px}
+    .card h3{margin:0 0 10px 0; font-size:16px}
+    .meta{font-size:13px;color:var(--muted);margin-bottom:8px}
+    .kvs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .kv{
+      padding:10px 12px; background:#0c0f14; border:1px solid #1b2230; border-radius:12px; font-size:13px;
+    }
+    .kv b{display:block;color:#cbd5e1;font-size:12px;margin-bottom:4px;font-weight:600}
+    .badge{display:inline-block; padding:4px 8px; border-radius:999px; background:#0c0f14; border:1px solid #1b2230; font-size:12px; color:#cbd5e1}
+    .row{display:flex;flex-wrap:wrap;gap:8px}
+
+    .loading{
+      display:none; align-items:center; gap:8px; color:var(--muted); font-size:14px; padding:0 16px 16px 16px
+    }
+    .spinner{width:16px;height:16px;border:2px solid #3b82f6;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    footer{margin:26px 0 60px;color:var(--muted);font-size:12px;text-align:center}
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div class="brand">
-      <div class="dot" aria-hidden="true"></div>
-      <div>
-        <h1>AI Stock Storyteller</h1>
-        <div class="sub">Minimal, evidence-based stories for traders.</div>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <div class="title">AI Stock Storyteller</div>
+          <div class="sub">Trader-style briefs + market facts, on demand</div>
+        </div>
       </div>
-    </div>
-    <div class="badge">AWS • OpenAI • S3 Cache</div>
-  </header>
+      <div class="sub">v2</div>
+    </header>
 
-  <!-- Controls -->
-  <section class="card" aria-labelledby="form">
-    <div class="panel">
-      <div class="field sugg">
-        <label for="ticker">Ticker (with autocomplete)</label>
-        <input id="ticker" placeholder="Start typing: NVDA, AAPL, MSFT…" autocomplete="off" />
-        <div id="dd" class="dropdown" role="listbox" aria-label="Suggestions"></div>
+    <section class="panel">
+      <div class="search">
+        <div class="field">
+          <label for="ticker">Ticker</label>
+          <input id="ticker" type="text" placeholder="AAPL, NVDA, MSFT…" autocomplete="off" />
+          <div id="suggestions" class="suggestions" style="display:none;"></div>
+        </div>
+        <div class="field" style="max-width:220px">
+          <label for="window">Lookback Window (days)</label>
+          <select id="window">
+            <option value="90">90</option>
+            <option value="120">120</option>
+            <option value="180" selected>180</option>
+            <option value="270">270</option>
+            <option value="365">365</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button id="btnFetch" class="primary">Get Story</button>
+          <button id="btnClear">Clear</button>
+        </div>
       </div>
-      <div class="field" style="max-width:180px">
-        <label for="days">Window (days)</label>
-        <select id="days">
-          <option value="90">90</option>
-          <option value="180" selected>180</option>
-          <option value="365">365</option>
-        </select>
-      </div>
-      <div class="actions">
-        <button id="run" type="button">Generate</button>
-        <button id="share" class="ghost" type="button">Copy Link</button>
-      </div>
-    </div>
-    <div class="presets">
-      <span class="chip" data-t="NVDA">NVDA</span>
-      <span class="chip" data-t="AAPL">AAPL</span>
-      <span class="chip" data-t="MSFT">MSFT</span>
-      <span class="chip" data-t="TSLA">TSLA</span>
-      <span class="chip" data-t="SPY">SPY</span>
-      <span class="chip" data-t="QQQ">QQQ</span>
-    </div>
-  </section>
-
-  <div id="warn" class="alert warn"></div>
-  <div id="err" class="alert err"></div>
-  <div id="load" class="loader"><div class="spinner"></div><div class="muted">Generating your story…</div></div>
-
-  <!-- Results -->
-  <div class="grid" id="results" hidden>
-    <section class="card section">
-      <div class="pill"><span id="title">—</span></div>
-      <p class="muted" id="tldr" style="margin:10px 0 8px"></p>
-      <p id="narr" style="white-space:pre-wrap;margin:0"></p>
-      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px" id="tags"></div>
+      <div id="loading" class="loading"><div class="spinner"></div>Fetching live data…</div>
     </section>
-    <aside class="card section">
-      <h3 style="margin:0 0 8px 0">Snapshot</h3>
-      <div class="facts" id="facts"></div>
-      <div style="margin-top:12px">
-        <h3 style="margin:0 0 6px 0">Highlights</h3>
-        <ul class="clean" id="pos" style="list-style:none; padding:0; margin:0"></ul>
-      </div>
-      <div style="margin-top:10px">
-        <h3 style="margin:0 0 6px 0">Risks</h3>
-        <ul class="clean" id="risks" style="list-style:none; padding:0; margin:0"></ul>
-      </div>
-      <p class="muted" id="disc" style="margin-top:10px"></p>
-    </aside>
+
+    <div class="grid">
+      <section class="panel card">
+        <h3 id="storyTitle">Story</h3>
+        <div class="meta" id="storyMeta">—</div>
+        <p id="storyTLDR" style="font-weight:600;margin:8px 0 12px 0;">—</p>
+        <p id="storyText" style="line-height:1.6;color:#d6dee6;">—</p>
+
+        <div style="margin-top:14px">
+          <div class="sub" style="margin:8px 0 6px">Positives</div>
+          <div id="positives" class="row"></div>
+        </div>
+        <div style="margin-top:12px">
+          <div class="sub" style="margin:8px 0 6px">Risks</div>
+          <div id="risks" class="row"></div>
+        </div>
+        <div style="margin-top:12px">
+          <div class="sub" style="margin:8px 0 6px">Tags</div>
+          <div id="tags" class="row"></div>
+        </div>
+      </section>
+
+      <aside class="panel card">
+        <h3>Key Facts</h3>
+        <div id="facts" class="kvs">
+          <!-- populated by JS -->
+        </div>
+      </aside>
+    </div>
+
+    <footer>© <span id="year"></span> Anirudh Kowshik — built with FastAPI + Lambda + API Gateway</footer>
   </div>
 
-  <footer>
-    <div>© <span id="yr"></span> <span id="owner"></span></div>
-    <div class="links">
-      <a class="link" id="apiLink" href="#" target="_blank" rel="noreferrer">Last API call</a>
-      <a class="link" href="https://github.com/kowshik-anirudh/ai-stock-storyteller" target="_blank" rel="noreferrer">Source</a>
-    </div>
-  </footer>
-</div>
+  <script>
+    // ====== CONFIG ======
+    const API_BASE = "https://cq094tylu1.execute-api.us-west-2.amazonaws.com/Prod/api"; // from your stack output
+    const TICKERS_URL = "./tickers.json"; // place tickers.json alongside this file in /docs
 
-<script>
-  // ===== CONFIG =====
-  const API_BASE = "https://cq094tylu1.execute-api.us-west-2.amazonaws.com/Prod/api";
-  const OWNER_NAME = "Anirudh Kowshik";
-  const TICKERS_URL = "tickers.json"; // same folder as index.html
-  const API_KEY = ""; // if you later enable API Gateway key auth, put it here.
-  // ==================
+    // ====== UTIL ======
+    const $ = (sel) => document.querySelector(sel);
+    const el = (tag, attrs={}, text="") => {
+      const n = document.createElement(tag);
+      Object.entries(attrs).forEach(([k,v]) => n.setAttribute(k,v));
+      if (text) n.textContent = text;
+      return n;
+    };
 
-  const $ = s => document.querySelector(s);
-  const el = {
-    t: $("#ticker"), dd: $("#dd"), d: $("#days"), run: $("#run"), share: $("#share"),
-    warn: $("#warn"), err: $("#err"), load: $("#load"), res: $("#results"),
-    title: $("#title"), tldr: $("#tldr"), narr: $("#narr"), tags: $("#tags"),
-    facts: $("#facts"), pos: $("#pos"), risks: $("#risks"), disc: $("#disc"),
-    apiLink: $("#apiLink"), owner: $("#owner")
-  };
+    // ====== Autocomplete ======
+    const txt = $("#ticker");
+    const sug = $("#suggestions");
+    let TICKERS = [];
+    fetch(TICKERS_URL)
+      .then(r => r.json())
+      .then(list => { TICKERS = list; })
+      .catch(() => { /* optional: silently ignore */ });
 
-  document.getElementById("yr").textContent = new Date().getFullYear();
-  el.owner.textContent = OWNER_NAME;
+    function showSuggestions(q){
+      if (!q || q.length < 1 || !TICKERS.length){ sug.style.display = "none"; return; }
+      const needle = q.toUpperCase();
+      const out = TICKERS.filter(t =>
+        t.symbol.startsWith(needle) || (t.name && t.name.toUpperCase().includes(needle))
+      ).slice(0, 12);
 
-  // ===== Autocomplete =====
-  let master = []; // [{s,n}]
-  fetch(TICKERS_URL).then(r=>r.json()).then(list => master = list).catch(()=>{ /* ignore */ });
-
-  el.t.addEventListener("input", () => suggest(el.t.value.trim()));
-  el.t.addEventListener("focus", () => suggest(el.t.value.trim()));
-  document.addEventListener("click", (e)=>{ if(!el.dd.contains(e.target) && e.target!==el.t){ el.dd.style.display="none"; }});
-
-  function suggest(q){
-    const v = (q || "").toUpperCase();
-    if(!v){ el.dd.style.display="none"; return; }
-    const m = v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(m, "i");
-    const out = master
-      .filter(x => x.s.startsWith(v) || re.test(x.s) || re.test(x.n))
-      .slice(0, 12);
-
-    if(out.length===0){ el.dd.style.display="none"; return; }
-
-    el.dd.innerHTML = out.map(x=>{
-      const sym = x.s.replace(re, (w)=>`<mark>${w}</mark>`);
-      const nm  = x.n.replace(re, (w)=>`<mark>${w}</mark>`);
-      return `<div class="row" role="option" data-s="${x.s}">
-        <div class="mono">${sym}</div>
-        <div class="muted" style="flex:1;text-align:right">${nm}</div>
-      </div>`;
-    }).join("");
-    el.dd.style.display = "block";
-    el.dd.querySelectorAll(".row").forEach(r=>r.addEventListener("click", ()=>{
-      el.t.value = r.dataset.s;
-      el.dd.style.display="none";
-      run(false);
-    }));
-  }
-
-  // Presets + Actions
-  document.querySelectorAll(".chip").forEach(c => c.addEventListener("click", ()=>{
-    el.t.value = c.dataset.t; run();
-  }));
-  el.run.addEventListener("click", ()=>run());
-  el.share.addEventListener("click", ()=>{
-    const u = new URL(location.href);
-    u.searchParams.set("ticker", el.t.value.trim().toUpperCase());
-    u.searchParams.set("days", el.d.value);
-    navigator.clipboard.writeText(u.toString());
-  });
-  el.t.addEventListener("keydown", e=>{ if(e.key==="Enter") run(); });
-
-  // Load from URL
-  (function initFromQuery(){
-    const q = new URLSearchParams(location.search);
-    const t = (q.get("ticker") || "NVDA").toUpperCase();
-    const days = q.get("days") || "180";
-    el.t.value = t; el.d.value = days;
-    run(false);
-  })();
-
-  async function run(showToast=true){
-    clearAlerts();
-    const ticker = el.t.value.trim().toUpperCase();
-    const days = parseInt(el.d.value, 10) || 180;
-    if(!ticker){ alertBox(el.err, "Enter a ticker."); return; }
-
-    const url = `${API_BASE}/story/${encodeURIComponent(ticker)}?window_days=${days}`;
-    el.apiLink.href = url;
-
-    toggleLoad(true);
-    try{
-      const res = await fetch(url, {
-        headers: Object.assign({"Accept":"application/json"}, API_KEY?{"x-api-key":API_KEY}:{})
+      if (!out.length){ sug.style.display = "none"; return; }
+      sug.innerHTML = "";
+      out.forEach(tk => {
+        const row = el("div");
+        const left = el("span", {class:"ticker"}, tk.symbol);
+        const right = el("span", {class:"name"}, tk.name || "");
+        row.append(left, right);
+        row.addEventListener("click", () => {
+          txt.value = tk.symbol;
+          sug.style.display = "none";
+        });
+        sug.appendChild(row);
       });
-      if(!res.ok) throw new Error(`API ${res.status}`);
-      const data = await res.json();
-      render(data);
-    }catch(e){
-      alertBox(el.err, e.message || "Request failed");
-      el.res.hidden = true;
-    }finally{
-      toggleLoad(false);
+      sug.style.display = "block";
     }
-  }
+    txt.addEventListener("input", e => showSuggestions(e.target.value));
+    document.addEventListener("click", (e) => {
+      if (!sug.contains(e.target) && e.target !== txt) sug.style.display = "none";
+    });
 
-  function render(data){
-    const { ticker, window_days, facts={}, story={}, disclaimer="" } = data || {};
-    el.res.hidden = false;
-    el.title.textContent = story.title || `${ticker} story`;
-    el.tldr.textContent = story.tldr || "";
-    el.narr.textContent = story.narrative || "";
-    el.tags.innerHTML = (story.suggested_tags||[]).map(t=>`<span class="pill">#${t}</span>`).join("");
+    // ====== Fetch + Render ======
+    const loading = $("#loading");
+    const windowSel = $("#window");
+    const btnFetch = $("#btnFetch");
+    const btnClear = $("#btnClear");
 
-    const rows = [
-      ["Current Price", money(facts.current_price)],
-      ["5d Change", pct(facts.chg_5d)],
-      ["1m Change", pct(facts.chg_1m)],
-      ["3m Change", pct(facts.chg_3m)],
-      ["6m Change", pct(facts.chg_6m)],
-      ["1y Change", pct(facts.chg_1y)],
-      ["Vol (30d σ ann.)", pct(facts.vol_30)],
-      ["MaxDD YTD", pct(facts.max_dd_ytd)],
-      ["RSI-14", num(facts.rsi14)],
-      ["ATR-14", money(facts.atr14)],
-      ["Beta vs SPY", num(facts.beta_vs_spy)],
-      ["Rel 3m vs SPY", pct(facts.rel_3m_vs_spy_pct)],
-      ["20DMA", money(facts.dma20)],
-      ["50DMA", money(facts.dma50)],
-      ["200DMA", money(facts.dma200)],
-      ["Δ vs 20DMA", pct(facts.dist20_pct)],
-      ["Δ vs 50DMA", pct(facts.dist50_pct)],
-      ["Δ vs 200DMA", pct(facts.dist200_pct)],
-      ["Avg Vol (20d)", intf(facts.avg_vol_20d)],
-      ["Vol Ratio (today/avg)", num(facts.vol_ratio)],
-      ["20d High", money(facts.sr_high_20d)],
-      ["20d Low", money(facts.sr_low_20d)],
-      ["Technicals", facts.technicals||"—"],
-      ["Earnings", facts.earnings_event||"—"],
-      ["Window", `${window_days}d`]
-    ];
-    el.facts.innerHTML = rows.map(([k,v])=>`<div class="fact"><div class="k">${k}</div><div class="v mono">${v}</div></div>`).join("");
+    const storyTitle = $("#storyTitle");
+    const storyMeta = $("#storyMeta");
+    const storyTLDR = $("#storyTLDR");
+    const storyText = $("#storyText");
+    const positives = $("#positives");
+    const risks = $("#risks");
+    const tags = $("#tags");
+    const factsWrap = $("#facts");
 
-    listTo(el.pos, story.positives);
-    listTo(el.risks, story.risks);
-    el.disc.textContent = disclaimer || "Educational use only. Not investment advice.";
+    function fmtPct(x){
+      if (x === null || x === undefined || isNaN(x)) return "—";
+      return (x > 0 ? "+" : "") + x.toFixed(2) + "%";
+    }
+    function kv(label, value){
+      const k = el("div", {class:"kv"});
+      k.append(el("b", {}, label), el("div", {}, value));
+      return k;
+    }
+    function badge(text){ return el("span", {class:"badge"}, text); }
 
-    // fallback notice
-    const fb = (story.suggested_tags||[]).includes("fallback");
-    if(fb) alertBox(el.warn, "Showing fallback (model quota/rate limit).");
-    else el.warn.style.display="none";
-  }
+    async function fetchStory(){
+      const ticker = txt.value.trim().toUpperCase();
+      const days = parseInt(windowSel.value, 10);
+      if (!ticker){ alert("Enter a ticker (e.g., NVDA)"); txt.focus(); return; }
 
-  function listTo(node, arr){
-    node.innerHTML = "";
-    (arr||[]).forEach(x=>{ const li=document.createElement("li"); li.textContent=x; node.appendChild(li); });
-    if(!arr || arr.length===0){ const li=document.createElement("li"); li.className="muted"; li.textContent="—"; node.appendChild(li); }
-  }
-  function money(x){ if(x==null || Number.isNaN(+x)) return "—"; return "$"+Number(x).toLocaleString(undefined,{maximumFractionDigits:2}); }
-  function intf(x){ if(x==null || Number.isNaN(+x)) return "—"; return Number(x).toLocaleString(); }
-  function num(x){ if(x==null || Number.isNaN(+x)) return "—"; return Number(x).toLocaleString(undefined,{maximumFractionDigits:2}); }
-  function pct(x){ if(x==null || Number.isNaN(+x)) return "—"; const v=Number(x); const c=v>0? "var(--good)" : v<0? "var(--bad)" : "var(--muted)"; return `<span style="color:${c}">${v.toFixed(2)}%</span>`; }
-  function alertBox(node,msg){ node.textContent=msg; node.style.display="block"; }
-  function clearAlerts(){ el.warn.style.display="none"; el.err.style.display="none"; }
-  function toggleLoad(on){ el.load.style.display = on? "flex":"none"; el.run.disabled=on; el.share.disabled=on; }
-</script>
+      loading.style.display = "flex";
+      storyTitle.textContent = "Story";
+      storyMeta.textContent = "—";
+      storyTLDR.textContent = "—";
+      storyText.textContent = "—";
+      positives.innerHTML = risks.innerHTML = tags.innerHTML = "";
+      factsWrap.innerHTML = "";
+
+      try{
+        const url = `${API_BASE}/story/${encodeURIComponent(ticker)}?window_days=${days}`;
+        const res = await fetch(url, { method: "GET" });
+        if (!res.ok){
+          const msg = await res.text();
+          throw new Error(msg || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+
+        // Render Story
+        storyTitle.textContent = data.story?.title || `${ticker} story`;
+        storyMeta.textContent = `${data.ticker} · window ${data.window_days}d`;
+        storyTLDR.textContent = data.story?.tldr || "—";
+        storyText.textContent = data.story?.narrative || "—";
+
+        (data.story?.positives || []).forEach(p => positives.appendChild(badge(p)));
+        (data.story?.risks || []).forEach(r => risks.appendChild(badge(r)));
+        (data.story?.suggested_tags || []).forEach(t => tags.appendChild(badge(t)));
+
+        // Render Facts (curated order for traders)
+        const f = data.facts || {};
+        const items = [
+          ["Price", f.current_price ? `$${(+f.current_price).toFixed(2)}` : "—"],
+          ["5d / 1m / 3m", `${fmtPct(f.chg_5d)}  ·  ${fmtPct(f.chg_1m)}  ·  ${fmtPct(f.chg_3m)}`],
+          ["6m / 1y", `${fmtPct(f.chg_6m)}  ·  ${fmtPct(f.chg_1y)}`],
+          ["Vol (30d, ann.)", f.vol_30 ? fmtPct(f.vol_30) : "—"],
+          ["Max DD (YTD)", f.max_dd_ytd ? fmtPct(f.max_dd_ytd) : "—"],
+          ["RSI(14) / ATR(14)", `${f.rsi14?.toFixed?.(2) ?? "—"}  ·  ${f.atr14?.toFixed?.(2) ?? "—"}`],
+          ["MAs", `${f.dma20?.toFixed?.(2) ?? "—"} / ${f.dma50?.toFixed?.(2) ?? "—"} / ${f.dma200?.toFixed?.(2) ?? "—"}`],
+          ["Dist to 20/50/200", `${fmtPct(f.dist20_pct)} / ${fmtPct(f.dist50_pct)} / ${fmtPct(f.dist200_pct)}`],
+          ["Slope20 (ann.)", f.slope20_pct_annual ? fmtPct(f.slope20_pct_annual) : "—"],
+          ["Rel 3m vs SPY", f.rel_3m_vs_spy_pct ? fmtPct(f.rel_3m_vs_spy_pct) : "—"],
+          ["Beta vs SPY", f.beta_vs_spy?.toFixed?.(2) ?? "—"],
+          ["Vol ratio (1d/20d)", f.vol_ratio?.toFixed?.(2) ?? "—"],
+          ["SR 20d Hi/Lo", (f.sr_high_20d && f.sr_low_20d) ? `$${f.sr_high_20d.toFixed(2)} / $${f.sr_low_20d.toFixed(2)}` : "—"],
+          ["Technicals", f.technicals || "—"],
+        ];
+        items.forEach(([k,v]) => factsWrap.appendChild(kv(k,v)));
+
+        // Remember last
+        localStorage.setItem("lastTicker", ticker);
+        localStorage.setItem("lastWindow", String(days));
+      }catch(err){
+        storyTitle.textContent = "Error";
+        storyText.textContent = (""+err.message || "Failed to fetch story");
+      }finally{
+        loading.style.display = "none";
+      }
+    }
+
+    btnFetch.addEventListener("click", fetchStory);
+    btnClear.addEventListener("click", () => {
+      txt.value = ""; sug.style.display = "none";
+      storyTitle.textContent = "Story";
+      storyMeta.textContent = storyTLDR.textContent = storyText.textContent = "—";
+      positives.innerHTML = risks.innerHTML = tags.innerHTML = "";
+      factsWrap.innerHTML = "";
+    });
+
+    // Enter key
+    txt.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") fetchStory();
+    });
+
+    // Restore last state
+    (function init(){
+      $("#year").textContent = new Date().getFullYear();
+      const lt = localStorage.getItem("lastTicker");
+      const lw = localStorage.getItem("lastWindow");
+      if (lt) txt.value = lt;
+      if (lw) windowSel.value = lw;
+    })();
+  </script>
 </body>
 </html>
