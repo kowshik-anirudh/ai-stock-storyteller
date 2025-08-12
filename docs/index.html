@@ -63,7 +63,6 @@
     .ticker{font-weight:700}
     .name{color:var(--muted);font-size:13px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
 
-    /* Top price strip */
     .price-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0}
     .price-left{display:flex;align-items:baseline;gap:12px}
     .current-price{font-size:40px;font-weight:800;letter-spacing:.2px}
@@ -91,7 +90,6 @@
     #chart{height:420px; width:100%; margin-top:16px}
     footer{margin:26px 0 60px;color:var(--muted);font-size:12px;text-align:center}
 
-    /* Tooltip */
     .tooltip{
       position:fixed; pointer-events:none; transform:translate(-50%, calc(-100% - 10px));
       background:#0c0f14; color:#e8ecf1; border:1px solid #1b2230; padding:8px 10px; border-radius:8px;
@@ -135,7 +133,6 @@
         </div>
       </div>
 
-      <!-- Prominent price strip -->
       <div class="price-strip" id="priceStrip" style="display:none; padding: 0 16px 16px;">
         <div class="price-left">
           <div id="priceSymbol" class="sub" style="font-weight:700; font-size:14px;"></div>
@@ -183,17 +180,12 @@
   <div id="tooltip" class="tooltip"></div>
 
   <script>
-    // ====== CONFIG (robust paths for GH Pages) ======
-    const REPO_SEGMENT = "/ai-stock-storyteller/"; // repo path for Pages
-    const isGhPages = location.hostname.endsWith(".github.io");
-    const BASE_PATH = isGhPages
-      ? (location.pathname.startsWith(REPO_SEGMENT) ? REPO_SEGMENT : location.pathname.replace(/[^/]+$/, ""))
-      : (location.pathname.endsWith("/") ? location.pathname : location.pathname.replace(/[^/]+$/, "/"));
-
+    // ====== CONFIG ======
     const API_BASE = "https://cq094tylu1.execute-api.us-west-2.amazonaws.com/Prod/api";
-    const TICKERS_URL = `${BASE_PATH}tickers.json`;
+    // Always resolve tickers.json relative to current page (works on GitHub Pages)
+    const TICKERS_URL = new URL('tickers.json', window.location.href).href;
 
-    // ====== UTIL ======
+    // ====== HELPERS ======
     const $ = (sel) => document.querySelector(sel);
     const el = (tag, attrs={}, text="") => {
       const n = document.createElement(tag);
@@ -219,7 +211,7 @@
       return out;
     }
 
-    // ====== Autocomplete (more robust + no-cache) ======
+    // ====== Autocomplete ======
     const txt = $("#ticker");
     const sug = $("#suggestions");
     let TICKERS = [];
@@ -266,7 +258,7 @@
       if (!sug.contains(e.target) && e.target !== txt) sug.style.display = "none";
     });
 
-    // ====== UI elements ======
+    // ====== UI refs ======
     const loading = $("#loading");
     const windowSel = $("#window");
     const btnFetch = $("#btnFetch");
@@ -286,18 +278,18 @@
     const priceMeta = $("#priceMeta");
     $("#year").textContent = new Date().getFullYear();
 
-    // Tooltips for Key Facts
+    // ====== Tooltips ======
     const tooltip = $("#tooltip");
     const FACT_HELP = {
       "Price": "Latest close from the selected window.",
       "5d / 1m / 3m": "Percentage change over the last 5 trading days, 1 month (~21d), and 3 months (~63d).",
       "6m / 1y": "Percentage change over 6 months (~126d) and 1 year (~252d).",
-      "Vol (30d, ann.)": "Annualized volatility estimated from the last 30 daily returns.",
+      "Vol (30d, ann.)": "Annualized volatility from the last 30 daily returns.",
       "Max DD (YTD)": "Largest peak-to-trough drawdown since Jan 1 of this year.",
       "RSI(14) / ATR(14)": "RSI shows overbought/oversold; ATR is average true range (volatility).",
       "MAs": "Simple moving averages for 20/50/200 days.",
       "Dist to 20/50/200": "Price’s percent distance from each moving average.",
-      "Slope20 (ann.)": "Annualized slope of last 20 days’ prices (rough momentum proxy).",
+      "Slope20 (ann.)": "Annualized slope of last 20 days’ prices (momentum proxy).",
       "Rel 3m vs SPY": "Out/under-performance vs S&P 500 (SPY) over ~3 months.",
       "Beta vs SPY": "Sensitivity of the stock’s returns to SPY (market beta).",
       "Vol ratio (1d/20d)": "Today’s volume vs 20-day average volume.",
@@ -321,7 +313,7 @@
       return k;
     }
 
-    function drawChart(chart, showMA20=true, showMA50=true){
+    function drawChart(chart){
       const x = chart.map(p => p.t);
       const open = chart.map(p => p.o);
       const high = chart.map(p => p.h);
@@ -332,25 +324,21 @@
       const ma20 = sma(close, 20);
       const ma50 = sma(close, 50);
 
-      const candle = {
-        x, open, high, low, close, type: "candlestick", name: "Price",
-        increasing: {line: {width: 1}}, decreasing: {line: {width: 1}},
-        xaxis: "x", yaxis: "y"
-      };
+      const candle = { x, open, high, low, close, type: "candlestick", name: "Price",
+        increasing: {line: {width: 1}}, decreasing: {line: {width: 1}}, xaxis: "x", yaxis: "y" };
       const volBar = { x, y: vol, type: "bar", name: "Volume", opacity: 0.3, yaxis: "y2" };
-      const traces = [candle, volBar];
-
-      if (showMA20) traces.push({ x, y: ma20, type: "scatter", mode: "lines", name: "MA20", line: { width: 1.5 }});
-      if (showMA50) traces.push({ x, y: ma50, type: "scatter", mode: "lines", name: "MA50", line: { width: 1.5 }});
+      const traces = [candle, volBar,
+        { x, y: ma20, type: "scatter", mode: "lines", name: "MA20", line: { width: 1.5 }},
+        { x, y: ma50, type: "scatter", mode: "lines", name: "MA50", line: { width: 1.5 }}
+      ];
 
       const layout = {
         margin: {l: 40, r: 20, t: 10, b: 30},
-        paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "rgba(0,0,0,0)",
+        paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
         font: { color: "#e8ecf1" },
         xaxis: { rangeslider: { visible: false }, showgrid: false },
         yaxis: { domain: [0.25, 1.0], showgrid: true, gridcolor: "rgba(255,255,255,0.06)" },
-        yaxis2: { domain: [0.0, 0.22], showgrid: false, title: {text: ""} },
+        yaxis2: { domain: [0.0, 0.22], showgrid: false },
         legend: { orientation: "h", y: 1.05, x: 0, font: {size: 10} },
       };
       Plotly.newPlot("chart", traces, layout, {displayModeBar: false, responsive: true});
@@ -358,77 +346,75 @@
 
     async function fetchStory(){
       const ticker = txt.value.trim().toUpperCase();
-      const days = parseInt(windowSel.value, 10);
+      const days = parseInt($("#window").value, 10);
       if (!ticker){ alert("Enter a ticker (e.g., NVDA)"); txt.focus(); return; }
 
-      loading.style.display = "flex";
+      $("#loading").style.display = "flex";
       $("#chart").innerHTML = "";
-      priceStrip.style.display = "none";
+      $("#priceStrip").style.display = "none";
 
-      // reset story/facts
+      // Reset content
       const resetBlocks = ()=>{
-        storyTitle.textContent = "Story";
-        storyMeta.textContent = storyTLDR.textContent = storyText.textContent = "—";
-        positives.innerHTML = risks.innerHTML = tags.innerHTML = "";
-        factsWrap.innerHTML = "";
+        $("#storyTitle").textContent = "Story";
+        $("#storyMeta").textContent = $("#storyTLDR").textContent = $("#storyText").textContent = "—";
+        $("#positives").innerHTML = $("#risks").innerHTML = $("#tags").innerHTML = "";
+        $("#facts").innerHTML = "";
       };
       resetBlocks();
 
       try{
         const url = `${API_BASE}/story/${encodeURIComponent(ticker)}?window_days=${days}`;
-        const res = await fetch(url, { method: "GET" });
-        if (!res.ok){
-          const msg = await res.text();
-          throw new Error(msg || `HTTP ${res.status}`);
-        }
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`);
         const data = await res.json();
 
-        // --- Chart ---
+        // Chart + top price
         if (Array.isArray(data.chart) && data.chart.length > 1){
           drawChart(data.chart);
-
-          // Prominent price + 1d change from last two closes
           const last = data.chart[data.chart.length-1];
           const prev = data.chart[data.chart.length-2];
           const lastClose = last.c, prevClose = prev.c;
           const chg = prevClose ? ((lastClose/prevClose)-1)*100 : 0;
-          const cls = signClass(chg);
-          priceSymbol.textContent = data.ticker;
-          currentPrice.textContent = `$${(+lastClose).toFixed(2)}`;
-          priceChip.textContent = (chg>=0?"+":"") + chg.toFixed(2) + "%";
-          priceChip.className = "price-chip " + (chg>0 ? "chip-pos" : chg<0 ? "chip-neg" : "");
-          priceMeta.textContent = `Window: ${data.window_days}d · ${new Date(last.t).toLocaleDateString()}`;
-          priceStrip.style.display = "flex";
-          // color the price itself lightly if desired
-          currentPrice.className = "current-price " + cls;
+
+          $("#priceSymbol").textContent = data.ticker;
+          $("#currentPrice").textContent = `$${(+lastClose).toFixed(2)}`;
+          const chip = $("#priceChip");
+          chip.textContent = (chg>=0?"+":"") + chg.toFixed(2) + "%";
+          chip.className = "price-chip " + (chg>0 ? "chip-pos" : chg<0 ? "chip-neg" : "");
+          $("#priceMeta").textContent = `Window: ${data.window_days}d · ${new Date(last.t).toLocaleDateString()}`;
+          $("#priceStrip").style.display = "flex";
+          $("#currentPrice").className = "current-price " + (chg>0 ? "pos" : chg<0 ? "neg" : "");
         } else {
           $("#chart").innerHTML = '<div style="padding:16px;color:#9aa4af">No chart data available.</div>';
         }
 
-        // --- Story ---
-        storyTitle.textContent = data.story?.title || `${ticker} story`;
-        storyMeta.textContent = `${data.ticker} · window ${data.window_days}d`;
-        storyTLDR.textContent = data.story?.tldr || "—";
-        storyText.textContent = data.story?.narrative || "—";
-        (data.story?.positives || []).forEach(p => positives.appendChild(el("span",{class:"badge"},p)));
-        (data.story?.risks || []).forEach(r => risks.appendChild(el("span",{class:"badge"},r)));
-        (data.story?.suggested_tags || []).forEach(t => tags.appendChild(el("span",{class:"badge"},t)));
+        // Story
+        $("#storyTitle").textContent = data.story?.title || `${ticker} story`;
+        $("#storyMeta").textContent = `${data.ticker} · window ${data.window_days}d`;
+        $("#storyTLDR").textContent = data.story?.tldr || "—";
+        $("#storyText").textContent = data.story?.narrative || "—";
+        (data.story?.positives || []).forEach(p => $("#positives").appendChild(el("span",{class:"badge"},p)));
+        (data.story?.risks || []).forEach(r => $("#risks").appendChild(el("span",{class:"badge"},r)));
+        (data.story?.suggested_tags || []).forEach(t => $("#tags").appendChild(el("span",{class:"badge"},t)));
 
-        // --- Facts (with green/red for % values) ---
+        // Facts + tooltips + red/green
         const f = data.facts || {};
-        const pctClasses = (val) => {
-          const s = el("span", {class: signClass(val)}, (val==null? "—" : ((val>0?"+":"")+val.toFixed(2)+"%")));
+        const pctSpan = (val) => {
+          if (val==null || isNaN(val)) return "—";
+          const s = document.createElement("span");
+          s.className = signClass(val);
+          s.textContent = (val>0?"+":"") + val.toFixed(2) + "%";
           return s.outerHTML;
         };
-        const items = [
+        const facts = [
           ["Price", f.current_price ? `$${(+f.current_price).toFixed(2)}` : "—"],
-          ["5d / 1m / 3m", `${pctClasses(f.chg_5d)} · ${pctClasses(f.chg_1m)} · ${pctClasses(f.chg_3m)}`],
-          ["6m / 1y", `${pctClasses(f.chg_6m)} · ${pctClasses(f.chg_1y)}`],
+          ["5d / 1m / 3m", `${pctSpan(f.chg_5d)} · ${pctSpan(f.chg_1m)} · ${pctSpan(f.chg_3m)}`],
+          ["6m / 1y", `${pctSpan(f.chg_6m)} · ${pctSpan(f.chg_1y)}`],
           ["Vol (30d, ann.)", f.vol_30!=null ? ((f.vol_30>0?"+":"")+f.vol_30.toFixed(2)+"%") : "—"],
           ["Max DD (YTD)", f.max_dd_ytd!=null ? ((f.max_dd_ytd>0?"+":"")+f.max_dd_ytd.toFixed(2)+"%") : "—"],
           ["RSI(14) / ATR(14)", `${f.rsi14?.toFixed?.(2) ?? "—"} · ${f.atr14?.toFixed?.(2) ?? "—"}`],
           ["MAs", `${f.dma20?.toFixed?.(2) ?? "—"} / ${f.dma50?.toFixed?.(2) ?? "—"} / ${f.dma200?.toFixed?.(2) ?? "—"}`],
-          ["Dist to 20/50/200", `${pctClasses(f.dist20_pct)} / ${pctClasses(f.dist50_pct)} / ${pctClasses(f.dist200_pct)}`],
+          ["Dist to 20/50/200", `${pctSpan(f.dist20_pct)} / ${pctSpan(f.dist50_pct)} / ${pctSpan(f.dist200_pct)}`],
           ["Slope20 (ann.)", f.slope20_pct_annual!=null ? ((f.slope20_pct_annual>0?"+":"")+f.slope20_pct_annual.toFixed(2)+"%") : "—"],
           ["Rel 3m vs SPY", f.rel_3m_vs_spy_pct!=null ? ((f.rel_3m_vs_spy_pct>0?"+":"")+f.rel_3m_vs_spy_pct.toFixed(2)+"%") : "—"],
           ["Beta vs SPY", f.beta_vs_spy?.toFixed?.(2) ?? "—"],
@@ -436,34 +422,32 @@
           ["SR 20d Hi/Lo", (f.sr_high_20d && f.sr_low_20d) ? `$${f.sr_high_20d.toFixed(2)} / $${f.sr_low_20d.toFixed(2)}` : "—"],
           ["Technicals", f.technicals || "—"],
         ];
-        items.forEach(([k,v]) => {
-          // v may contain HTML (colored spans); preserve it
+        const factsWrap = $("#facts");
+        facts.forEach(([k,v]) => {
           const node = kv(k, "");
           node.querySelector("div:last-child").innerHTML = v;
           factsWrap.appendChild(node);
         });
 
-        // Persist
         localStorage.setItem("lastTicker", ticker);
         localStorage.setItem("lastWindow", String(days));
       }catch(err){
-        storyTitle.textContent = "Error";
-        storyText.textContent = (""+err.message || "Failed to fetch story");
+        $("#storyTitle").textContent = "Error";
+        $("#storyText").textContent = (""+err.message || "Failed to fetch story");
       }finally{
-        loading.style.display = "none";
+        $("#loading").style.display = "none";
       }
     }
 
-    const btnFetch = $("#btnFetch");
-    const btnClear = $("#btnClear");
-    btnFetch.addEventListener("click", fetchStory);
-    btnClear.addEventListener("click", () => {
+    // Events
+    $("#btnFetch").addEventListener("click", fetchStory);
+    $("#btnClear").addEventListener("click", () => {
       txt.value = ""; sug.style.display = "none";
-      $("#chart").innerHTML = ""; priceStrip.style.display = "none";
-      storyTitle.textContent = "Story";
-      storyMeta.textContent = storyTLDR.textContent = storyText.textContent = "—";
-      positives.innerHTML = risks.innerHTML = tags.innerHTML = "";
-      factsWrap.innerHTML = "";
+      $("#chart").innerHTML = ""; $("#priceStrip").style.display = "none";
+      $("#storyTitle").textContent = "Story";
+      $("#storyMeta").textContent = $("#storyTLDR").textContent = $("#storyText").textContent = "—";
+      $("#positives").innerHTML = $("#risks").innerHTML = $("#tags").innerHTML = "";
+      $("#facts").innerHTML = "";
     });
     txt.addEventListener("keydown", (e) => { if (e.key === "Enter") fetchStory(); });
 
@@ -472,7 +456,8 @@
       const lt = localStorage.getItem("lastTicker");
       const lw = localStorage.getItem("lastWindow");
       if (lt) txt.value = lt;
-      if (lw) windowSel.value = lw;
+      if (lw) $("#window").value = lw;
+      $("#year").textContent = new Date().getFullYear();
     })();
   </script>
 </body>
