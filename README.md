@@ -7,7 +7,7 @@ It combines **live stock data**, **technical analysis**, and **AI-powered summar
 
 ## 🚀 Why MarketPulse?
 Most trading dashboards just show numbers.  
-**MarketPulse** explains what’s happening — in plain language — and backs it with interactive visuals. - [Click here to check it out here](https://kowshik-anirudh.github.io/ai-stock-storyteller/?v=force-$(Get-Date%20-Format%20yyyyMMddHHmmss))
+**MarketPulse** explains what’s happening — in plain language — and backs it with interactive visuals. - [Click here to check it out](https://kowshik-anirudh.github.io/ai-stock-storyteller/?v=force-$(Get-Date%20-Format%20yyyyMMddHHmmss))
 
 ---
 
