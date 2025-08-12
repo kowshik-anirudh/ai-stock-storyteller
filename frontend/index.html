@@ -3,122 +3,76 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AI Stock Storyteller</title>
-  <meta name="description" content="AI-generated trader briefs + market facts for any US ticker." />
+  <title>MarketPulse</title>
+  <meta name="description" content="MarketPulse — AI trader briefs, technicals, and interactive charts." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
   <style>
     :root{
-      --bg:#0b0d11;
-      --panel:#0f1218;
-      --muted:#9aa4af;
-      --text:#e8ecf1;
-      --brand:#74c0fc;
-      --accent:#a78bfa;
-      --ok:#22c55e;
-      --warn:#f59e0b;
-      --danger:#ef4444;
-      --ring: 0 0 0 2px rgba(167,139,250,.35);
-      --shadow: 0 10px 30px rgba(0,0,0,.35);
-      --glass: rgba(255,255,255,.06);
-      --glass-border: 1px solid rgba(255,255,255,.08);
-      --radius: 16px;
+      --bg:#0b0d11; --panel:#0f1218; --muted:#9aa4af; --text:#e8ecf1;
+      --brand:#74c0fc; --accent:#a78bfa; --ring:0 0 0 2px rgba(167,139,250,.35);
+      --shadow:0 10px 30px rgba(0,0,0,.35); --glass:rgba(255,255,255,.06);
+      --glass-border:1px solid rgba(255,255,255,.08); --radius:16px;
     }
-    *{box-sizing:border-box}
-    html,body{height:100%}
+    *{box-sizing:border-box} html,body{height:100%}
     body{
-      margin:0;
-      background: radial-gradient(1200px 800px at 10% -10%, rgba(116,192,252,.08), transparent 40%),
-                  radial-gradient(900px 700px at 110% 10%, rgba(167,139,250,.10), transparent 45%),
-                  var(--bg);
-      color:var(--text);
-      font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      margin:0; background:
+        radial-gradient(1200px 800px at 10% -10%, rgba(116,192,252,.08), transparent 40%),
+        radial-gradient(900px 700px at 110% 10%, rgba(167,139,250,.10), transparent 45%),
+        var(--bg);
+      color:var(--text); font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       letter-spacing:.1px;
     }
-    a{color:var(--brand); text-decoration:none}
-    a:hover{text-decoration:underline}
-    .wrap{max-width:980px;margin:32px auto;padding:0 16px}
-    header{
-      display:flex;align-items:center;justify-content:space-between;margin-bottom:20px
-    }
-    .brand{
-      display:flex;gap:12px;align-items:center;
-    }
-    .logo{
-      width:44px;height:44px;border-radius:12px;
-      background:
-        radial-gradient(180px 80px at 80% -40%, rgba(167,139,250,.6), transparent 50%),
-        radial-gradient(160px 120px at -20% 120%, rgba(116,192,252,.6), transparent 55%),
-        linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.04));
-      backdrop-filter: blur(6px);
-      border:var(--glass-border);
-      box-shadow:var(--shadow);
+    .wrap{max-width:1100px;margin:32px auto;padding:0 16px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:44px;height:44px;border-radius:12px;background:
+      radial-gradient(180px 80px at 80% -40%, rgba(167,139,250,.6), transparent 50%),
+      radial-gradient(160px 120px at -20% 120%, rgba(116,192,252,.6), transparent 55%),
+      linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.04));
+      backdrop-filter: blur(6px); border:var(--glass-border); box-shadow:var(--shadow);
     }
     .title{font-weight:700;font-size:20px}
     .sub{color:var(--muted);font-size:13px;margin-top:2px}
-
-    .panel{
-      background:var(--glass); border:var(--glass-border);
-      border-radius:var(--radius); box-shadow:var(--shadow);
-    }
-    .search{
-      padding:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center
-    }
+    .panel{background:var(--glass); border:var(--glass-border); border-radius:var(--radius); box-shadow:var(--shadow)}
+    .search{padding:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
     .field{flex:1;min-width:240px;position:relative}
     label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
-    input[type="text"], input[type="number"], select{
+    input, select{
       width:100%; padding:12px 14px; background:#0c0f14; color:var(--text);
       border:1px solid #1b2230; border-radius:12px; outline:none; font-size:14px;
       transition: box-shadow .15s, border-color .15s;
     }
-    input[type="text"]:focus, input[type="number"]:focus, select:focus{
-      border-color:#3b82f6; box-shadow: var(--ring);
-    }
+    input:focus, select:focus{border-color:#3b82f6; box-shadow: var(--ring)}
     .actions{display:flex;gap:12px;align-items:flex-end}
-    button{
-      padding:12px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.12);
-      background:linear-gradient(180deg, rgba(55,65,81,.6), rgba(30,41,59,.6));
-      color:var(--text); font-weight:600; cursor:pointer; transition:.15s;
-    }
+    button{padding:12px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.12);
+      background:linear-gradient(180deg, rgba(55,65,81,.6), rgba(30,41,59,.6)); color:var(--text);
+      font-weight:600; cursor:pointer; transition:.15s;}
+    button.primary{background:linear-gradient(180deg, #2563eb, #1d4ed8); border:none}
     button:hover{transform:translateY(-1px)}
-    button.primary{
-      background:linear-gradient(180deg, #2563eb, #1d4ed8); border:none;
-    }
-
-    .suggestions{
-      position:absolute; top:70px; left:0; right:0;
-      background:#0c0f14; border:1px solid #1b2230; border-radius:12px; z-index:10;
-      max-height:280px; overflow:auto; box-shadow:var(--shadow);
-    }
-    .suggestions div{
-      padding:10px 12px; cursor:pointer; display:flex; justify-content:space-between; gap:8px;
-      border-bottom:1px solid rgba(255,255,255,.04);
-    }
+    .suggestions{position:absolute; top:70px; left:0; right:0; background:#0c0f14; border:1px solid #1b2230;
+      border-radius:12px; z-index:10; max-height:280px; overflow:auto; box-shadow:var(--shadow)}
+    .suggestions div{padding:10px 12px; cursor:pointer; display:flex; justify-content:space-between; gap:8px;
+      border-bottom:1px solid rgba(255,255,255,.04)}
     .suggestions div:last-child{border-bottom:0}
     .suggestions div:hover{background:#0f1520}
     .ticker{font-weight:700}
     .name{color:var(--muted);font-size:13px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
-
-    .grid{display:grid;grid-template-columns:1.2fr .8fr; gap:16px; margin-top:16px}
-    @media (max-width:900px){ .grid{grid-template-columns:1fr} }
-
+    .grid{display:grid;grid-template-columns:1fr .9fr; gap:16px; margin-top:16px}
+    @media (max-width:1000px){ .grid{grid-template-columns:1fr} }
     .card{padding:16px}
     .card h3{margin:0 0 10px 0; font-size:16px}
     .meta{font-size:13px;color:var(--muted);margin-bottom:8px}
     .kvs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-    .kv{
-      padding:10px 12px; background:#0c0f14; border:1px solid #1b2230; border-radius:12px; font-size:13px;
-    }
+    .kv{padding:10px 12px; background:#0c0f14; border:1px solid #1b2230; border-radius:12px; font-size:13px}
     .kv b{display:block;color:#cbd5e1;font-size:12px;margin-bottom:4px;font-weight:600}
-    .badge{display:inline-block; padding:4px 8px; border-radius:999px; background:#0c0f14; border:1px solid #1b2230; font-size:12px; color:#cbd5e1}
     .row{display:flex;flex-wrap:wrap;gap:8px}
-
-    .loading{
-      display:none; align-items:center; gap:8px; color:var(--muted); font-size:14px; padding:0 16px 16px 16px
-    }
+    .badge{display:inline-block; padding:4px 8px; border-radius:999px; background:#0c0f14; border:1px solid #1b2230; font-size:12px; color:#cbd5e1}
+    .loading{display:none; align-items:center; gap:8px; color:var(--muted); font-size:14px; padding:0 16px 16px}
     .spinner{width:16px;height:16px;border:2px solid #3b82f6;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
-
+    #chart{height:420px; width:100%; margin-top:16px}
     footer{margin:26px 0 60px;color:var(--muted);font-size:12px;text-align:center}
   </style>
 </head>
@@ -128,11 +82,11 @@
       <div class="brand">
         <div class="logo"></div>
         <div>
-          <div class="title">AI Stock Storyteller</div>
-          <div class="sub">Trader-style briefs + market facts, on demand</div>
+          <div class="title">MarketPulse</div>
+          <div class="sub">AI trader briefs · technicals · interactive charts</div>
         </div>
       </div>
-      <div class="sub">v2</div>
+      <div class="sub">v3</div>
     </header>
 
     <section class="panel">
@@ -153,12 +107,14 @@
           </select>
         </div>
         <div class="actions">
-          <button id="btnFetch" class="primary">Get Story</button>
+          <button id="btnFetch" class="primary">Analyze</button>
           <button id="btnClear">Clear</button>
         </div>
       </div>
       <div id="loading" class="loading"><div class="spinner"></div>Fetching live data…</div>
     </section>
+
+    <div id="chart" class="panel"></div>
 
     <div class="grid">
       <section class="panel card">
@@ -183,19 +139,23 @@
 
       <aside class="panel card">
         <h3>Key Facts</h3>
-        <div id="facts" class="kvs">
-          <!-- populated by JS -->
-        </div>
+        <div id="facts" class="kvs"></div>
       </aside>
     </div>
 
-    <footer>© <span id="year"></span> Anirudh Kowshik — built with FastAPI + Lambda + API Gateway</footer>
+    <footer>© <span id="year"></span> Anirudh Kowshik — MarketPulse</footer>
   </div>
 
   <script>
-    // ====== CONFIG ======
-    const API_BASE = "https://cq094tylu1.execute-api.us-west-2.amazonaws.com/Prod/api"; // from your stack output
-    const TICKERS_URL = "./tickers.json"; // place tickers.json alongside this file in /docs
+    // ====== CONFIG (robust paths for GH Pages) ======
+    const REPO_SEGMENT = "/ai-stock-storyteller/"; // keep repo path for Pages
+    const isGhPages = location.hostname.endsWith(".github.io");
+    const BASE_PATH = isGhPages
+      ? (location.pathname.startsWith(REPO_SEGMENT) ? REPO_SEGMENT : location.pathname.replace(/[^/]+$/, ""))
+      : (location.pathname.endsWith("/") ? location.pathname : location.pathname.replace(/[^/]+$/, "/"));
+
+    const API_BASE = "https://cq094tylu1.execute-api.us-west-2.amazonaws.com/Prod/api";
+    const TICKERS_URL = `${BASE_PATH}tickers.json`;
 
     // ====== UTIL ======
     const $ = (sel) => document.querySelector(sel);
@@ -205,23 +165,51 @@
       if (text) n.textContent = text;
       return n;
     };
+    function fmtPct(x){
+      if (x === null || x === undefined || isNaN(x)) return "—";
+      return (x > 0 ? "+" : "") + x.toFixed(2) + "%";
+    }
+    function sma(arr, period){
+      const out = new Array(arr.length).fill(null);
+      let sum = 0;
+      for (let i=0;i<arr.length;i++){
+        const v = arr[i]; if (v == null) { out[i]=null; continue; }
+        sum += v;
+        if (i >= period) sum -= arr[i-period];
+        if (i >= period-1) out[i] = sum / period;
+      }
+      return out;
+    }
 
     // ====== Autocomplete ======
     const txt = $("#ticker");
     const sug = $("#suggestions");
     let TICKERS = [];
-    fetch(TICKERS_URL)
-      .then(r => r.json())
-      .then(list => { TICKERS = list; })
-      .catch(() => { /* optional: silently ignore */ });
-
+    const FALLBACK_TICKERS = [
+      {"symbol":"AAPL","name":"Apple Inc."},{"symbol":"MSFT","name":"Microsoft Corporation"},
+      {"symbol":"NVDA","name":"NVIDIA Corporation"},{"symbol":"AMZN","name":"Amazon.com, Inc."},
+      {"symbol":"TSLA","name":"Tesla, Inc."},{"symbol":"META","name":"Meta Platforms, Inc."},
+      {"symbol":"GOOGL","name":"Alphabet Inc. Class A"},{"symbol":"GOOG","name":"Alphabet Inc. Class C"},
+      {"symbol":"SPY","name":"SPDR S&P 500 ETF Trust"}
+    ];
+    (async () => {
+      try {
+        const res = await fetch(TICKERS_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        if (!text || !text.trim().length) throw new Error("Empty tickers.json");
+        TICKERS = JSON.parse(text);
+      } catch (e) {
+        console.warn("tickers.json load failed, using fallback:", e);
+        TICKERS = FALLBACK_TICKERS;
+      }
+    })();
     function showSuggestions(q){
       if (!q || q.length < 1 || !TICKERS.length){ sug.style.display = "none"; return; }
       const needle = q.toUpperCase();
       const out = TICKERS.filter(t =>
-        t.symbol.startsWith(needle) || (t.name && t.name.toUpperCase().includes(needle))
+        t.symbol?.toUpperCase().startsWith(needle) || (t.name && t.name.toUpperCase().includes(needle))
       ).slice(0, 12);
-
       if (!out.length){ sug.style.display = "none"; return; }
       sug.innerHTML = "";
       out.forEach(tk => {
@@ -229,10 +217,7 @@
         const left = el("span", {class:"ticker"}, tk.symbol);
         const right = el("span", {class:"name"}, tk.name || "");
         row.append(left, right);
-        row.addEventListener("click", () => {
-          txt.value = tk.symbol;
-          sug.style.display = "none";
-        });
+        row.addEventListener("click", () => { txt.value = tk.symbol; sug.style.display = "none"; });
         sug.appendChild(row);
       });
       sug.style.display = "block";
@@ -242,12 +227,11 @@
       if (!sug.contains(e.target) && e.target !== txt) sug.style.display = "none";
     });
 
-    // ====== Fetch + Render ======
+    // ====== UI elements ======
     const loading = $("#loading");
     const windowSel = $("#window");
     const btnFetch = $("#btnFetch");
     const btnClear = $("#btnClear");
-
     const storyTitle = $("#storyTitle");
     const storyMeta = $("#storyMeta");
     const storyTLDR = $("#storyTLDR");
@@ -257,16 +241,46 @@
     const tags = $("#tags");
     const factsWrap = $("#facts");
 
-    function fmtPct(x){
-      if (x === null || x === undefined || isNaN(x)) return "—";
-      return (x > 0 ? "+" : "") + x.toFixed(2) + "%";
-    }
     function kv(label, value){
       const k = el("div", {class:"kv"});
       k.append(el("b", {}, label), el("div", {}, value));
       return k;
     }
-    function badge(text){ return el("span", {class:"badge"}, text); }
+
+    function drawChart(chart, showMA20=true, showMA50=true){
+      const x = chart.map(p => p.t);
+      const open = chart.map(p => p.o);
+      const high = chart.map(p => p.h);
+      const low  = chart.map(p => p.l);
+      const close= chart.map(p => p.c);
+      const vol  = chart.map(p => p.v ?? 0);
+
+      const ma20 = sma(close, 20);
+      const ma50 = sma(close, 50);
+
+      const candle = {
+        x, open, high, low, close, type: "candlestick", name: "Price",
+        increasing: {line: {width: 1}}, decreasing: {line: {width: 1}},
+        xaxis: "x", yaxis: "y"
+      };
+      const volBar = { x, y: vol, type: "bar", name: "Volume", opacity: 0.3, yaxis: "y2" };
+      const traces = [candle, volBar];
+
+      if (showMA20) traces.push({ x, y: ma20, type: "scatter", mode: "lines", name: "MA20", line: { width: 1.5 }});
+      if (showMA50) traces.push({ x, y: ma50, type: "scatter", mode: "lines", name: "MA50", line: { width: 1.5 }});
+
+      const layout = {
+        margin: {l: 40, r: 20, t: 10, b: 30},
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "rgba(0,0,0,0)",
+        font: { color: "#e8ecf1" },
+        xaxis: { rangeslider: { visible: false }, showgrid: false },
+        yaxis: { domain: [0.25, 1.0], showgrid: true, gridcolor: "rgba(255,255,255,0.06)" },
+        yaxis2: { domain: [0.0, 0.22], showgrid: false, title: {text: ""} },
+        legend: { orientation: "h", y: 1.05, x: 0, font: {size: 10} },
+      };
+      Plotly.newPlot("chart", traces, layout, {displayModeBar: false, responsive: true});
+    }
 
     async function fetchStory(){
       const ticker = txt.value.trim().toUpperCase();
@@ -275,11 +289,10 @@
 
       loading.style.display = "flex";
       storyTitle.textContent = "Story";
-      storyMeta.textContent = "—";
-      storyTLDR.textContent = "—";
-      storyText.textContent = "—";
+      storyMeta.textContent = storyTLDR.textContent = storyText.textContent = "—";
       positives.innerHTML = risks.innerHTML = tags.innerHTML = "";
       factsWrap.innerHTML = "";
+      $("#chart").innerHTML = "";
 
       try{
         const url = `${API_BASE}/story/${encodeURIComponent(ticker)}?window_days=${days}`;
@@ -290,17 +303,23 @@
         }
         const data = await res.json();
 
-        // Render Story
+        // --- Chart ---
+        if (Array.isArray(data.chart) && data.chart.length > 0){
+          drawChart(data.chart);
+        } else {
+          $("#chart").innerHTML = '<div style="padding:16px;color:#9aa4af">No chart data available.</div>';
+        }
+
+        // --- Story ---
         storyTitle.textContent = data.story?.title || `${ticker} story`;
         storyMeta.textContent = `${data.ticker} · window ${data.window_days}d`;
         storyTLDR.textContent = data.story?.tldr || "—";
         storyText.textContent = data.story?.narrative || "—";
+        (data.story?.positives || []).forEach(p => positives.appendChild(el("span",{class:"badge"},p)));
+        (data.story?.risks || []).forEach(r => risks.appendChild(el("span",{class:"badge"},r)));
+        (data.story?.suggested_tags || []).forEach(t => tags.appendChild(el("span",{class:"badge"},t)));
 
-        (data.story?.positives || []).forEach(p => positives.appendChild(badge(p)));
-        (data.story?.risks || []).forEach(r => risks.appendChild(badge(r)));
-        (data.story?.suggested_tags || []).forEach(t => tags.appendChild(badge(t)));
-
-        // Render Facts (curated order for traders)
+        // --- Facts ---
         const f = data.facts || {};
         const items = [
           ["Price", f.current_price ? `$${(+f.current_price).toFixed(2)}` : "—"],
@@ -320,7 +339,7 @@
         ];
         items.forEach(([k,v]) => factsWrap.appendChild(kv(k,v)));
 
-        // Remember last
+        // Persist
         localStorage.setItem("lastTicker", ticker);
         localStorage.setItem("lastWindow", String(days));
       }catch(err){
@@ -331,23 +350,19 @@
       }
     }
 
+    $("#year").textContent = new Date().getFullYear();
     btnFetch.addEventListener("click", fetchStory);
     btnClear.addEventListener("click", () => {
       txt.value = ""; sug.style.display = "none";
       storyTitle.textContent = "Story";
       storyMeta.textContent = storyTLDR.textContent = storyText.textContent = "—";
       positives.innerHTML = risks.innerHTML = tags.innerHTML = "";
-      factsWrap.innerHTML = "";
+      factsWrap.innerHTML = ""; $("#chart").innerHTML = "";
     });
-
-    // Enter key
-    txt.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") fetchStory();
-    });
+    txt.addEventListener("keydown", (e) => { if (e.key === "Enter") fetchStory(); });
 
     // Restore last state
     (function init(){
-      $("#year").textContent = new Date().getFullYear();
       const lt = localStorage.getItem("lastTicker");
       const lw = localStorage.getItem("lastWindow");
       if (lt) txt.value = lt;
