@@ -1,28 +1,45 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: AI Stock Storyteller – serverless API with S3 caching
+Description: MarketPulse - serverless stock briefs with Claude, news feeds and spend guards
 
 Parameters:
-  OpenAIKey:
+  ClaudeModel:
     Type: String
-    NoEcho: true
-    Description: OpenAI API key (kept as Lambda env var)
-  OpenAIModel:
+    Default: claude-sonnet-5-5
+    Description: Claude model for the written brief (claude-haiku-4-5 costs less, claude-opus-5-5 more)
+  ClaudeKeyParameterName:
     Type: String
-    Default: gpt-4o-mini
-    Description: OpenAI model to use
+    Default: /marketpulse/anthropic-api-key
+    Description: SSM Parameter Store name (SecureString) that holds the Claude API key
+  DailyBriefLimit:
+    Type: Number
+    Default: 10
+    MinValue: 0
+    Description: Most briefs Claude may write per day across all visitors. 0 turns the model off.
   AllowedOrigins:
     Type: String
-    Default: "*"
-    Description: CORS allowed origins (comma-separated or *)
+    Default: https://kowshik-anirudh.github.io
+    Description: Site origin allowed to call the API (comma-separated for more than one)
+  MonthlyBudgetUsd:
+    Type: Number
+    Default: 1
+    Description: When the AWS bill for the month reaches this amount, the API is switched off
+  AlertEmail:
+    Type: String
+    Description: Address that receives the budget alerts
 
 Globals:
   Api:
     Cors:
-      # Force quotes around origin so API Gateway doesn't reject bare *
       AllowOrigin: !Sub "'${AllowedOrigins}'"
       AllowMethods: "'GET,OPTIONS'"
-      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+      AllowHeaders: "'Content-Type'"
+    # Stage-wide rate limit so nobody can run up requests.
+    MethodSettings:
+      - ResourcePath: "/*"
+        HttpMethod: "*"
+        ThrottlingRateLimit: 2
+        ThrottlingBurstLimit: 5
 
 Resources:
   CacheBucket:
@@ -37,6 +54,31 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireCache
+            Status: Enabled
+            ExpirationInDays: 7
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  CacheBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CacheBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt CacheBucket.Arn
+              - !Sub "${CacheBucket.Arn}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
 
   StockFunctionRole:
     Type: AWS::IAM::Role
@@ -58,7 +100,7 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: "*"
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
         - PolicyName: S3CacheAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -67,9 +109,18 @@ Resources:
                 Action:
                   - s3:GetObject
                   - s3:PutObject
-                  - s3:HeadObject
-                Resource:
-                  - !Sub "${CacheBucket.Arn}/*"
+                Resource: !Sub "${CacheBucket.Arn}/*"
+              # Lets a missing cache key come back as "not found" instead of "access denied".
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt CacheBucket.Arn
+        - PolicyName: ReadClaudeKey
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ClaudeKeyParameterName}"
 
   StockFunction:
     Type: AWS::Serverless::Function
@@ -79,32 +130,137 @@ Resources:
       Runtime: python3.11
       Architectures:
         - x86_64
-      MemorySize: 1536
-      Timeout: 25
+      MemorySize: 512
+      Timeout: 28
       Role: !GetAtt StockFunctionRole.Arn
       Environment:
         Variables:
-          OPENAI_API_KEY: !Ref OpenAIKey
-          OPENAI_MODEL: !Ref OpenAIModel
+          # The API key itself is never stored here; the function reads it from SSM at run time.
+          ANTHROPIC_KEY_PARAM: !Ref ClaudeKeyParameterName
+          CLAUDE_MODEL: !Ref ClaudeModel
+          DAILY_BRIEF_LIMIT: !Ref DailyBriefLimit
           ALLOWED_ORIGINS: !Ref AllowedOrigins
           S3_CACHE_BUCKET: !Ref CacheBucket
-          S3_CACHE_TTL_SECONDS: "1800"  # 30 minutes
       Events:
-        HealthV2:
+        Health:
           Type: Api
           Properties:
             Path: /health
             Method: GET
-        GetStoryV2:
+        Quote:
           Type: Api
           Properties:
-            Path: /api/story/{ticker}
+            Path: /api/quote/{ticker}
             Method: GET
+        Brief:
+          Type: Api
+          Properties:
+            Path: /api/brief/{ticker}
+            Method: GET
+        News:
+          Type: Api
+          Properties:
+            Path: /api/news
+            Method: GET
+        RefreshNews:
+          Type: Schedule
+          Properties:
+            Schedule: rate(30 minutes)
+            Input: '{"task": "refresh_news"}'
+
+  # ---- Spend guard: at the monthly budget, switch the API off ----
+  BudgetAlertTopic:
+    Type: AWS::SNS::Topic
+
+  BudgetAlertTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref BudgetAlertTopic]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: budgets.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref BudgetAlertTopic
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+
+  KillSwitchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: python3.11
+      Handler: index.handler
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          TARGET_FUNCTION: !Ref StockFunction
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action: lambda:PutFunctionConcurrency
+              Resource: !GetAtt StockFunction.Arn
+      Events:
+        BudgetAlert:
+          Type: SNS
+          Properties:
+            Topic: !Ref BudgetAlertTopic
+      InlineCode: |
+        import os
+        import boto3
+
+        def handler(event, context):
+            # Concurrency 0 makes every request to the API fail fast and cost nothing.
+            # Undo with: aws lambda delete-function-concurrency --function-name <name>
+            boto3.client("lambda").put_function_concurrency(
+                FunctionName=os.environ["TARGET_FUNCTION"],
+                ReservedConcurrentExecutions=0,
+            )
+            print("budget reached: API switched off")
+            return {"disabled": os.environ["TARGET_FUNCTION"]}
+
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    DependsOn: BudgetAlertTopicPolicy
+    Properties:
+      Budget:
+        BudgetName: marketpulse-monthly-guard
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref MonthlyBudgetUsd
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 50
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BudgetAlertTopic
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
 
 Outputs:
   ApiBaseUrl:
     Description: API base URL
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api"
   CacheBucketName:
-    Description: S3 bucket used for caching stock stories
+    Description: S3 bucket used for cached data
     Value: !Ref CacheBucket
+  StockFunctionName:
+    Description: Main function (re-enable after a budget shut-off with delete-function-concurrency)
+    Value: !Ref StockFunction

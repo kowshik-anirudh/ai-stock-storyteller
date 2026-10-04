@@ -1,464 +1,120 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MarketPulse</title>
-  <meta name="description" content="MarketPulse — AI trader briefs, technicals, and interactive charts." />
+  <meta name="description" content="MarketPulse reads a stock's chart for you: price, trend and momentum numbers, a plain-language brief written by Claude, and the latest headlines.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://cq094tylu1.execute-api.us-west-2.amazonaws.com; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
-  <style>
-    :root{
-      --bg:#0b0d11; --panel:#0f1218; --muted:#9aa4af; --text:#e8ecf1;
-      --brand:#74c0fc; --accent:#a78bfa; --ring:0 0 0 2px rgba(167,139,250,.35);
-      --shadow:0 10px 30px rgba(0,0,0,.35); --glass:rgba(255,255,255,.06);
-      --glass-border:1px solid rgba(255,255,255,.08); --radius:16px;
-      --pos:#16a34a; --neg:#ef4444; --chip:#111520;
-    }
-    *{box-sizing:border-box} html,body{height:100%}
-    body{
-      margin:0; background:
-        radial-gradient(1200px 800px at 10% -10%, rgba(116,192,252,.08), transparent 40%),
-        radial-gradient(900px 700px at 110% 10%, rgba(167,139,250,.10), transparent 45%),
-        var(--bg);
-      color:var(--text); font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      letter-spacing:.1px;
-    }
-    .wrap{max-width:1100px;margin:32px auto;padding:0 16px}
-    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-    .brand{display:flex;gap:12px;align-items:center}
-    .logo{width:44px;height:44px;border-radius:12px;background:
-      radial-gradient(180px 80px at 80% -40%, rgba(167,139,250,.6), transparent 50%),
-      radial-gradient(160px 120px at -20% 120%, rgba(116,192,252,.6), transparent 55%),
-      linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.04));
-      backdrop-filter: blur(6px); border:var(--glass-border); box-shadow:var(--shadow);
-    }
-    .title{font-weight:700;font-size:20px}
-    .sub{color:var(--muted);font-size:13px;margin-top:2px}
-    .panel{background:var(--glass); border:var(--glass-border); border-radius:var(--radius); box-shadow:var(--shadow)}
-    .search{padding:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-    .field{flex:1;min-width:240px;position:relative}
-    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
-    input, select{
-      width:100%; padding:12px 14px; background:#0c0f14; color:var(--text);
-      border:1px solid #1b2230; border-radius:12px; outline:none; font-size:14px;
-      transition: box-shadow .15s, border-color .15s;
-    }
-    input:focus, select:focus{border-color:#3b82f6; box-shadow: var(--ring)}
-    .actions{display:flex;gap:12px;align-items:flex-end}
-    button{padding:12px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.12);
-      background:linear-gradient(180deg, rgba(55,65,81,.6), rgba(30,41,59,.6)); color:var(--text);
-      font-weight:600; cursor:pointer; transition:.15s;}
-    button.primary{background:linear-gradient(180deg, #2563eb, #1d4ed8); border:none}
-    button:hover{transform:translateY(-1px)}
-    .suggestions{
-      position:absolute; top:70px; left:0; right:0; background:#0c0f14; border:1px solid #1b2230;
-      border-radius:12px; z-index:9999; max-height:280px; overflow:auto; box-shadow:var(--shadow)
-    }
-    .suggestions div{padding:10px 12px; cursor:pointer; display:flex; justify-content:space-between; gap:8px;
-      border-bottom:1px solid rgba(255,255,255,.04)}
-    .suggestions div:last-child{border-bottom:0}
-    .suggestions div:hover{background:#0f1520}
-    .ticker{font-weight:700}
-    .name{color:var(--muted);font-size:13px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
-
-    .price-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0}
-    .price-left{display:flex;align-items:baseline;gap:12px}
-    .current-price{font-size:40px;font-weight:800;letter-spacing:.2px}
-    .price-chip{
-      display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;
-      background:var(--chip); border:1px solid #1b2230; font-weight:600; font-size:14px;
-    }
-    .pos{color:var(--pos)} .neg{color:var(--neg)}
-    .chip-pos{background:rgba(22,163,74,.12); border-color:rgba(22,163,74,.25)}
-    .chip-neg{background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.25)}
-
-    .grid{display:grid;grid-template-columns:1fr .9fr; gap:16px; margin-top:16px}
-    @media (max-width:1000px){ .grid{grid-template-columns:1fr} }
-    .card{padding:16px}
-    .card h3{margin:0 0 10px 0; font-size:16px}
-    .meta{font-size:13px;color:var(--muted);margin-bottom:8px}
-    .kvs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-    .kv{padding:10px 12px; background:#0c0f14; border:1px solid #1b2230; border-radius:12px; font-size:13px; position:relative}
-    .kv b{display:block;color:#cbd5e1;font-size:12px;margin-bottom:4px;font-weight:600}
-    .row{display:flex;flex-wrap:wrap;gap:8px}
-    .badge{display:inline-block; padding:4px 8px; border-radius:999px; background:#0c0f14; border:1px solid #1b2230; font-size:12px; color:#cbd5e1}
-    .loading{display:none; align-items:center; gap:8px; color:var(--muted); font-size:14px; padding:0 16px 16px}
-    .spinner{width:16px;height:16px;border:2px solid #3b82f6;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    #chart{height:420px; width:100%; margin-top:16px}
-    footer{margin:26px 0 60px;color:var(--muted);font-size:12px;text-align:center}
-
-    .tooltip{
-      position:fixed; pointer-events:none; transform:translate(-50%, calc(-100% - 10px));
-      background:#0c0f14; color:#e8ecf1; border:1px solid #1b2230; padding:8px 10px; border-radius:8px;
-      font-size:12px; max-width:280px; z-index:10000; box-shadow:var(--shadow); display:none;
-    }
-  </style>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div class="brand">
-        <div class="logo"></div>
-        <div>
-          <div class="title">MarketPulse</div>
-          <div class="sub">AI trader briefs · technicals · interactive charts</div>
-        </div>
-      </div>
-      <div class="sub">v3</div>
-    </header>
+  <header class="masthead">
+    <a class="brand" href="./" aria-label="MarketPulse home">
+      <svg class="brand-mark" viewBox="0 0 64 24" aria-hidden="true"><polyline points="0,14 14,14 20,4 28,21 35,9 40,14 64,14" /></svg>
+      <span>MarketPulse</span>
+    </a>
+    <form id="searchForm" class="search" role="search" autocomplete="off">
+      <label class="visually-hidden" for="ticker">Ticker symbol or company name</label>
+      <input id="ticker" type="text" inputmode="latin" maxlength="40" placeholder="Choose or search a ticker" role="combobox" aria-expanded="false" aria-controls="suggestions" aria-autocomplete="list">
+      <button id="tickerToggle" class="ticker-toggle" type="button" tabindex="-1" aria-label="Show all tickers">
+        <svg viewBox="0 0 12 8" aria-hidden="true"><polyline points="1,1 6,6 11,1" /></svg>
+      </button>
+      <ul id="suggestions" class="suggestions" role="listbox" hidden></ul>
+      <button type="submit">Read the chart</button>
+    </form>
+  </header>
 
-    <section class="panel">
-      <div class="search">
-        <div class="field">
-          <label for="ticker">Ticker</label>
-          <input id="ticker" type="text" placeholder="AAPL, NVDA, MSFT…" autocomplete="off" />
-          <div id="suggestions" class="suggestions" style="display:none;"></div>
-        </div>
-        <div class="field" style="max-width:220px">
-          <label for="window">Lookback Window (days)</label>
-          <select id="window">
-            <option value="90">90</option>
-            <option value="120">120</option>
-            <option value="180" selected>180</option>
-            <option value="270">270</option>
-            <option value="365">365</option>
-          </select>
-        </div>
-        <div class="actions">
-          <button id="btnFetch" class="primary">Analyze</button>
-          <button id="btnClear">Clear</button>
-        </div>
-      </div>
+  <nav class="watchlist" aria-label="Your watchlist">
+    <span class="watchlist-label">Watchlist</span>
+    <ul id="watchlist"></ul>
+  </nav>
 
-      <div class="price-strip" id="priceStrip" style="display:none; padding: 0 16px 16px;">
-        <div class="price-left">
-          <div id="priceSymbol" class="sub" style="font-weight:700; font-size:14px;"></div>
-          <div id="currentPrice" class="current-price">$—</div>
-          <div id="priceChip" class="price-chip">—</div>
-        </div>
-        <div class="sub" id="priceMeta">—</div>
-      </div>
-
-      <div id="loading" class="loading"><div class="spinner"></div>Fetching live data…</div>
+  <main>
+    <section id="welcome" class="welcome">
+      <h1>What is this stock actually doing?</h1>
+      <p>Pick a symbol. MarketPulse works out the trend, momentum and risk numbers from two years of prices, has Claude explain them in plain language, and lists what the news is saying.</p>
+      <ul id="starters" class="starters"></ul>
     </section>
 
-    <div id="chart" class="panel"></div>
-
-    <div class="grid">
-      <section class="panel card">
-        <h3 id="storyTitle">Story</h3>
-        <div class="meta" id="storyMeta">—</div>
-        <p id="storyTLDR" style="font-weight:600;margin:8px 0 12px 0;">—</p>
-        <p id="storyText" style="line-height:1.6;color:#d6dee6;">—</p>
-
-        <div style="margin-top:14px">
-          <div class="sub" style="margin:8px 0 6px">Positives</div>
-          <div id="positives" class="row"></div>
+    <section id="quote" hidden>
+      <div class="quote-head">
+        <div class="quote-name">
+          <h1 id="qSymbol"></h1>
+          <p id="qName"></p>
         </div>
-        <div style="margin-top:12px">
-          <div class="sub" style="margin:8px 0 6px">Risks</div>
-          <div id="risks" class="row"></div>
+        <div class="quote-price">
+          <span id="qPrice" class="price"></span>
+          <span id="qChange" class="change"></span>
+          <p id="qAsOf" class="quiet"></p>
         </div>
-        <div style="margin-top:12px">
-          <div class="sub" style="margin:8px 0 6px">Tags</div>
-          <div id="tags" class="row"></div>
+        <div class="quote-actions">
+          <button id="btnWatch" type="button" class="ghost" aria-pressed="false">Add to watchlist</button>
+          <button id="btnShare" type="button" class="ghost">Copy link</button>
         </div>
-      </section>
+      </div>
 
-      <aside class="panel card">
-        <h3>Key Facts</h3>
-        <div id="facts" class="kvs"></div>
-      </aside>
-    </div>
+      <div class="range52" aria-hidden="true">
+        <span id="rLow"></span>
+        <div class="range-track"><div id="rDot" class="range-dot"></div></div>
+        <span id="rHigh"></span>
+      </div>
+      <p id="rText" class="quiet range-text"></p>
 
-    <footer>© <span id="year"></span> Anirudh Kowshik — MarketPulse</footer>
-  </div>
+      <div class="chart-tools">
+        <div class="segmented" role="group" aria-label="Chart period">
+          <button type="button" data-window="30">1M</button>
+          <button type="button" data-window="90">3M</button>
+          <button type="button" data-window="180">6M</button>
+          <button type="button" data-window="365">1Y</button>
+        </div>
+        <div class="toggles">
+          <label><input type="checkbox" data-line="ma20" checked> 20-day avg</label>
+          <label><input type="checkbox" data-line="ma50" checked> 50-day avg</label>
+          <label><input type="checkbox" data-line="ma200"> 200-day avg</label>
+          <label><input type="checkbox" id="compare"> Compare with S&amp;P 500</label>
+        </div>
+      </div>
+      <div id="chart" class="chart" role="img" aria-label="Price chart"></div>
+      <div class="rsi-head"><span>RSI (14)</span><span class="quiet">above 70 is stretched, below 30 is washed out</span></div>
+      <div id="rsiChart" class="chart chart-rsi" role="img" aria-label="RSI chart"></div>
 
-  <div id="tooltip" class="tooltip"></div>
+      <div class="columns">
+        <article class="brief" aria-live="polite">
+          <h2>The brief</h2>
+          <div id="briefBody"></div>
+        </article>
 
-  <script>
-    // ====== CONFIG ======
-    const API_BASE = "https://cq094tylu1.execute-api.us-west-2.amazonaws.com/Prod/api";
-    // Always resolve tickers.json relative to current page (works on GitHub Pages)
-    const TICKERS_URL = new URL('tickers.json', window.location.href).href;
+        <aside class="rail">
+          <h2>Key numbers</h2>
+          <dl id="facts" class="facts"></dl>
+          <h2 id="tickerNewsTitle">In the news</h2>
+          <ul id="tickerNews" class="news-list"></ul>
+        </aside>
+      </div>
+    </section>
 
-    // ====== HELPERS ======
-    const $ = (sel) => document.querySelector(sel);
-    const el = (tag, attrs={}, text="") => {
-      const n = document.createElement(tag);
-      Object.entries(attrs).forEach(([k,v]) => n.setAttribute(k,v));
-      if (text) n.textContent = text;
-      return n;
-    };
-    const signClass = (v) => (v>0 ? "pos" : v<0 ? "neg" : "");
-    function fmtPct(x){
-      if (x === null || x === undefined || isNaN(x)) return "—";
-      const s = (x > 0 ? "+" : "") + x.toFixed(2) + "%";
-      return s;
-    }
-    function sma(arr, period){
-      const out = new Array(arr.length).fill(null);
-      let sum = 0;
-      for (let i=0;i<arr.length;i++){
-        const v = arr[i]; if (v == null) { out[i]=null; continue; }
-        sum += v;
-        if (i >= period) sum -= arr[i-period];
-        if (i >= period-1) out[i] = sum / period;
-      }
-      return out;
-    }
+    <p id="error" class="error" role="alert" hidden></p>
 
-    // ====== Autocomplete ======
-    const txt = $("#ticker");
-    const sug = $("#suggestions");
-    let TICKERS = [];
-    const FALLBACK_TICKERS = [
-      {"symbol":"AAPL","name":"Apple Inc."},{"symbol":"MSFT","name":"Microsoft Corporation"},
-      {"symbol":"NVDA","name":"NVIDIA Corporation"},{"symbol":"AMZN","name":"Amazon.com, Inc."},
-      {"symbol":"TSLA","name":"Tesla, Inc."},{"symbol":"META","name":"Meta Platforms, Inc."},
-      {"symbol":"GOOGL","name":"Alphabet Inc. Class A"},{"symbol":"GOOG","name":"Alphabet Inc. Class C"},
-      {"symbol":"SPY","name":"SPDR S&P 500 ETF Trust"}
-    ];
-    (async () => {
-      try {
-        const res = await fetch(`${TICKERS_URL}?_=${Date.now()}`, { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const text = await res.text();
-        if (!text || !text.trim().length) throw new Error("Empty tickers.json");
-        TICKERS = JSON.parse(text);
-      } catch (e) {
-        console.warn("tickers.json load failed, using fallback:", e);
-        TICKERS = FALLBACK_TICKERS;
-      }
-    })();
-    function showSuggestions(q){
-      if (!q || q.length < 1 || !TICKERS.length){ sug.style.display = "none"; return; }
-      const needle = q.toUpperCase();
-      const out = TICKERS.filter(t =>
-        t.symbol?.toUpperCase().startsWith(needle) || (t.name && t.name.toUpperCase().includes(needle))
-      ).slice(0, 12);
-      if (!out.length){ sug.style.display = "none"; return; }
-      sug.innerHTML = "";
-      out.forEach(tk => {
-        const row = el("div");
-        const left = el("span", {class:"ticker"}, tk.symbol);
-        const right = el("span", {class:"name"}, tk.name || "");
-        row.append(left, right);
-        row.addEventListener("click", () => { txt.value = tk.symbol; sug.style.display = "none"; txt.focus(); });
-        sug.appendChild(row);
-      });
-      sug.style.display = "block";
-    }
-    txt.addEventListener("input", e => showSuggestions(e.target.value));
-    txt.addEventListener("focus", e => { if (txt.value) showSuggestions(txt.value); });
-    document.addEventListener("click", (e) => {
-      if (!sug.contains(e.target) && e.target !== txt) sug.style.display = "none";
-    });
+    <section class="market-news">
+      <div class="market-news-head">
+        <h2>Market headlines</h2>
+        <p id="newsUpdated" class="quiet"></p>
+      </div>
+      <ul id="marketNews" class="news-grid"></ul>
+    </section>
+  </main>
 
-    // ====== UI refs ======
-    const loading = $("#loading");
-    const windowSel = $("#window");
-    const btnFetch = $("#btnFetch");
-    const btnClear = $("#btnClear");
-    const storyTitle = $("#storyTitle");
-    const storyMeta = $("#storyMeta");
-    const storyTLDR = $("#storyTLDR");
-    const storyText = $("#storyText");
-    const positives = $("#positives");
-    const risks = $("#risks");
-    const tags = $("#tags");
-    const factsWrap = $("#facts");
-    const priceStrip = $("#priceStrip");
-    const priceSymbol = $("#priceSymbol");
-    const currentPrice = $("#currentPrice");
-    const priceChip = $("#priceChip");
-    const priceMeta = $("#priceMeta");
-    $("#year").textContent = new Date().getFullYear();
+  <footer>
+    <p>Educational use only. Not investment advice. Prices are daily closes and can be a day behind.</p>
+    <p>Built by Anirudh Kowshik. Charts use TradingView Lightweight Charts. Headlines link to their publishers.</p>
+  </footer>
 
-    // ====== Tooltips ======
-    const tooltip = $("#tooltip");
-    const FACT_HELP = {
-      "Price": "Latest close from the selected window.",
-      "5d / 1m / 3m": "Percentage change over the last 5 trading days, 1 month (~21d), and 3 months (~63d).",
-      "6m / 1y": "Percentage change over 6 months (~126d) and 1 year (~252d).",
-      "Vol (30d, ann.)": "Annualized volatility from the last 30 daily returns.",
-      "Max DD (YTD)": "Largest peak-to-trough drawdown since Jan 1 of this year.",
-      "RSI(14) / ATR(14)": "RSI shows overbought/oversold; ATR is average true range (volatility).",
-      "MAs": "Simple moving averages for 20/50/200 days.",
-      "Dist to 20/50/200": "Price’s percent distance from each moving average.",
-      "Slope20 (ann.)": "Annualized slope of last 20 days’ prices (momentum proxy).",
-      "Rel 3m vs SPY": "Out/under-performance vs S&P 500 (SPY) over ~3 months.",
-      "Beta vs SPY": "Sensitivity of the stock’s returns to SPY (market beta).",
-      "Vol ratio (1d/20d)": "Today’s volume vs 20-day average volume.",
-      "SR 20d Hi/Lo": "Highest and lowest price in the last 20 trading days.",
-      "Technicals": "Detected trend cues (e.g., above 20DMA, golden cross)."
-    };
-    function attachTooltip(node, text){
-      node.addEventListener("mousemove", (e)=>{
-        tooltip.textContent = text;
-        tooltip.style.left = e.clientX + "px";
-        tooltip.style.top = e.clientY + "px";
-        tooltip.style.display = "block";
-      });
-      node.addEventListener("mouseleave", ()=>{ tooltip.style.display = "none"; });
-    }
-    function kv(label, value){
-      const k = el("div", {class:"kv", "data-k":label});
-      k.append(el("b", {}, label), el("div", {}, value));
-      const help = FACT_HELP[label];
-      if (help) attachTooltip(k, help);
-      return k;
-    }
-
-    function drawChart(chart){
-      const x = chart.map(p => p.t);
-      const open = chart.map(p => p.o);
-      const high = chart.map(p => p.h);
-      const low  = chart.map(p => p.l);
-      const close= chart.map(p => p.c);
-      const vol  = chart.map(p => p.v ?? 0);
-
-      const ma20 = sma(close, 20);
-      const ma50 = sma(close, 50);
-
-      const candle = { x, open, high, low, close, type: "candlestick", name: "Price",
-        increasing: {line: {width: 1}}, decreasing: {line: {width: 1}}, xaxis: "x", yaxis: "y" };
-      const volBar = { x, y: vol, type: "bar", name: "Volume", opacity: 0.3, yaxis: "y2" };
-      const traces = [candle, volBar,
-        { x, y: ma20, type: "scatter", mode: "lines", name: "MA20", line: { width: 1.5 }},
-        { x, y: ma50, type: "scatter", mode: "lines", name: "MA50", line: { width: 1.5 }}
-      ];
-
-      const layout = {
-        margin: {l: 40, r: 20, t: 10, b: 30},
-        paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
-        font: { color: "#e8ecf1" },
-        xaxis: { rangeslider: { visible: false }, showgrid: false },
-        yaxis: { domain: [0.25, 1.0], showgrid: true, gridcolor: "rgba(255,255,255,0.06)" },
-        yaxis2: { domain: [0.0, 0.22], showgrid: false },
-        legend: { orientation: "h", y: 1.05, x: 0, font: {size: 10} },
-      };
-      Plotly.newPlot("chart", traces, layout, {displayModeBar: false, responsive: true});
-    }
-
-    async function fetchStory(){
-      const ticker = txt.value.trim().toUpperCase();
-      const days = parseInt($("#window").value, 10);
-      if (!ticker){ alert("Enter a ticker (e.g., NVDA)"); txt.focus(); return; }
-
-      $("#loading").style.display = "flex";
-      $("#chart").innerHTML = "";
-      $("#priceStrip").style.display = "none";
-
-      // Reset content
-      const resetBlocks = ()=>{
-        $("#storyTitle").textContent = "Story";
-        $("#storyMeta").textContent = $("#storyTLDR").textContent = $("#storyText").textContent = "—";
-        $("#positives").innerHTML = $("#risks").innerHTML = $("#tags").innerHTML = "";
-        $("#facts").innerHTML = "";
-      };
-      resetBlocks();
-
-      try{
-        const url = `${API_BASE}/story/${encodeURIComponent(ticker)}?window_days=${days}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`);
-        const data = await res.json();
-
-        // Chart + top price
-        if (Array.isArray(data.chart) && data.chart.length > 1){
-          drawChart(data.chart);
-          const last = data.chart[data.chart.length-1];
-          const prev = data.chart[data.chart.length-2];
-          const lastClose = last.c, prevClose = prev.c;
-          const chg = prevClose ? ((lastClose/prevClose)-1)*100 : 0;
-
-          $("#priceSymbol").textContent = data.ticker;
-          $("#currentPrice").textContent = `$${(+lastClose).toFixed(2)}`;
-          const chip = $("#priceChip");
-          chip.textContent = (chg>=0?"+":"") + chg.toFixed(2) + "%";
-          chip.className = "price-chip " + (chg>0 ? "chip-pos" : chg<0 ? "chip-neg" : "");
-          $("#priceMeta").textContent = `Window: ${data.window_days}d · ${new Date(last.t).toLocaleDateString()}`;
-          $("#priceStrip").style.display = "flex";
-          $("#currentPrice").className = "current-price " + (chg>0 ? "pos" : chg<0 ? "neg" : "");
-        } else {
-          $("#chart").innerHTML = '<div style="padding:16px;color:#9aa4af">No chart data available.</div>';
-        }
-
-        // Story
-        $("#storyTitle").textContent = data.story?.title || `${ticker} story`;
-        $("#storyMeta").textContent = `${data.ticker} · window ${data.window_days}d`;
-        $("#storyTLDR").textContent = data.story?.tldr || "—";
-        $("#storyText").textContent = data.story?.narrative || "—";
-        (data.story?.positives || []).forEach(p => $("#positives").appendChild(el("span",{class:"badge"},p)));
-        (data.story?.risks || []).forEach(r => $("#risks").appendChild(el("span",{class:"badge"},r)));
-        (data.story?.suggested_tags || []).forEach(t => $("#tags").appendChild(el("span",{class:"badge"},t)));
-
-        // Facts + tooltips + red/green
-        const f = data.facts || {};
-        const pctSpan = (val) => {
-          if (val==null || isNaN(val)) return "—";
-          const s = document.createElement("span");
-          s.className = signClass(val);
-          s.textContent = (val>0?"+":"") + val.toFixed(2) + "%";
-          return s.outerHTML;
-        };
-        const facts = [
-          ["Price", f.current_price ? `$${(+f.current_price).toFixed(2)}` : "—"],
-          ["5d / 1m / 3m", `${pctSpan(f.chg_5d)} · ${pctSpan(f.chg_1m)} · ${pctSpan(f.chg_3m)}`],
-          ["6m / 1y", `${pctSpan(f.chg_6m)} · ${pctSpan(f.chg_1y)}`],
-          ["Vol (30d, ann.)", f.vol_30!=null ? ((f.vol_30>0?"+":"")+f.vol_30.toFixed(2)+"%") : "—"],
-          ["Max DD (YTD)", f.max_dd_ytd!=null ? ((f.max_dd_ytd>0?"+":"")+f.max_dd_ytd.toFixed(2)+"%") : "—"],
-          ["RSI(14) / ATR(14)", `${f.rsi14?.toFixed?.(2) ?? "—"} · ${f.atr14?.toFixed?.(2) ?? "—"}`],
-          ["MAs", `${f.dma20?.toFixed?.(2) ?? "—"} / ${f.dma50?.toFixed?.(2) ?? "—"} / ${f.dma200?.toFixed?.(2) ?? "—"}`],
-          ["Dist to 20/50/200", `${pctSpan(f.dist20_pct)} / ${pctSpan(f.dist50_pct)} / ${pctSpan(f.dist200_pct)}`],
-          ["Slope20 (ann.)", f.slope20_pct_annual!=null ? ((f.slope20_pct_annual>0?"+":"")+f.slope20_pct_annual.toFixed(2)+"%") : "—"],
-          ["Rel 3m vs SPY", f.rel_3m_vs_spy_pct!=null ? ((f.rel_3m_vs_spy_pct>0?"+":"")+f.rel_3m_vs_spy_pct.toFixed(2)+"%") : "—"],
-          ["Beta vs SPY", f.beta_vs_spy?.toFixed?.(2) ?? "—"],
-          ["Vol ratio (1d/20d)", f.vol_ratio?.toFixed?.(2) ?? "—"],
-          ["SR 20d Hi/Lo", (f.sr_high_20d && f.sr_low_20d) ? `$${f.sr_high_20d.toFixed(2)} / $${f.sr_low_20d.toFixed(2)}` : "—"],
-          ["Technicals", f.technicals || "—"],
-        ];
-        const factsWrap = $("#facts");
-        facts.forEach(([k,v]) => {
-          const node = kv(k, "");
-          node.querySelector("div:last-child").innerHTML = v;
-          factsWrap.appendChild(node);
-        });
-
-        localStorage.setItem("lastTicker", ticker);
-        localStorage.setItem("lastWindow", String(days));
-      }catch(err){
-        $("#storyTitle").textContent = "Error";
-        $("#storyText").textContent = (""+err.message || "Failed to fetch story");
-      }finally{
-        $("#loading").style.display = "none";
-      }
-    }
-
-    // Events
-    $("#btnFetch").addEventListener("click", fetchStory);
-    $("#btnClear").addEventListener("click", () => {
-      txt.value = ""; sug.style.display = "none";
-      $("#chart").innerHTML = ""; $("#priceStrip").style.display = "none";
-      $("#storyTitle").textContent = "Story";
-      $("#storyMeta").textContent = $("#storyTLDR").textContent = $("#storyText").textContent = "—";
-      $("#positives").innerHTML = $("#risks").innerHTML = $("#tags").innerHTML = "";
-      $("#facts").innerHTML = "";
-    });
-    txt.addEventListener("keydown", (e) => { if (e.key === "Enter") fetchStory(); });
-
-    // Restore last state
-    (function init(){
-      const lt = localStorage.getItem("lastTicker");
-      const lw = localStorage.getItem("lastWindow");
-      if (lt) txt.value = lt;
-      if (lw) $("#window").value = lw;
-      $("#year").textContent = new Date().getFullYear();
-    })();
-  </script>
+  <script src="vendor/lightweight-charts-4.2.3.js" integrity="sha384-stKllnUqA9AD0gsKCuUtf5XlqAW7PwIgDagoNsTWkjkBmJ/GZ/uHTgEBxdLV2VSK"></script>
+  <script src="app.js"></script>
 </body>
 </html>

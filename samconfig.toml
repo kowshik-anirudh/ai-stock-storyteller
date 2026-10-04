@@ -1,12 +1,11 @@
 version = 0.1
 
 [default.deploy.parameters]
-stack_name = "sam-app"
+stack_name = "ai-stock-storyteller"
 resolve_s3 = true
-s3_prefix = "sam-app"
+s3_prefix = "ai-stock-storyteller"
 region = "us-west-2"
-confirm_changeset = true
+confirm_changeset = false
 capabilities = "CAPABILITY_IAM"
-disable_rollback = true
-parameter_overrides = "OpenAIModel=\"gpt-4o-mini\" AllowedOrigins=\"*\""
+parameter_overrides = "ClaudeModel=\"claude-sonnet-5-5\" DailyBriefLimit=\"10\" MonthlyBudgetUsd=\"1\" AllowedOrigins=\"https://kowshik-anirudh.github.io\" AlertEmail=\"i.anirudh.kowshik@gmail.com\""
 image_repositories = []
